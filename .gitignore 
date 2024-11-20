@@ -1,0 +1,36 @@
+# Pastas de dados e resultados
+results/
+results/csshred/
+results/shred/
+results/*/
+Data/
+data/
+
+# Arquivos de dados
+*.npy
+*.npz
+*.mat
+*.json
+*.pth
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Ambiente virtual
+lpips-env/
+venv/
+env/
+
+# Jupyter Notebook
+.ipynb_checkpoints
+*/.ipynb_checkpoints/*
+
+# Sistema operacional
+.DS_Store
+Thumbs.db
+
+# IDEs
+.vscode/
+.idea/
