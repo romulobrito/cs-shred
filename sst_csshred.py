@@ -186,7 +186,7 @@ def plot_dynamics_at_sensors(
             X, Y, trace_A[:, :, -1].real, shading="auto", cmap="coolwarm"
         )
         fig.colorbar(cmap, ax=ax1, label=r"$(kg/kg)$")
-        ax1.set_title("Espatial Distribution of The QMAX")
+        ax1.set_title("Espatial Distribution of The SST")
         ax1.set_xlabel("X")
         ax1.set_ylabel("Y")
 
