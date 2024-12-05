@@ -19,7 +19,7 @@ warnings.filterwarnings("ignore", message="Linesearch failed with error 1")
 # npy_file_path = r"/home/romulo/Downloads/qmax.2m.1836_data_mavg.npy"
 npy_file_path = r'./data/sst_wkmean.npy'
 
-save_path = r'./results/shred/sst'
+save_path = r'./results/csshred/sst'
 
 # Verifica a disponibilidade de GPU
 device = "cuda" if torch.cuda.is_available() else "cpu"
@@ -186,7 +186,7 @@ def plot_dynamics_at_sensors(
             X, Y, trace_A[:, :, -1].real, shading="auto", cmap="coolwarm"
         )
         fig.colorbar(cmap, ax=ax1, label=r"$(kg/kg)$")
-        ax1.set_title("Espatial Distribution of The SST")
+        ax1.set_title("Spatial Distribution of The SST")
         ax1.set_xlabel("X")
         ax1.set_ylabel("Y")
 
@@ -295,7 +295,7 @@ def prepare_datasets(trace_A, trace_A_ori, num_sensors, sensor_locations, lags):
     sc = sc.fit(load_X[train_indices])
     transformed_X = sc.transform(load_X)
 
-    sc_test = sc.fit(load_X_test[train_indices])
+    # sc_test = sc.fit(load_X_test[train_indices])
     transformed_X_test = sc.transform(load_X_test)
 
     all_data_in = np.zeros((load_X_shape_0 - lags, lags, num_sensors))
@@ -336,7 +336,7 @@ def prepare_datasets(trace_A, trace_A_ori, num_sensors, sensor_locations, lags):
 
     train_dataset = TimeSeriesDataset(train_data_in, train_data_out)
     valid_dataset = TimeSeriesDataset(valid_data_in, valid_data_out)
-    test_dataset = TimeSeriesDataset(test_data_in, test_data_out)
+    # test_dataset = TimeSeriesDataset(test_data_in, test_data_out)
     test_dataset_test = TimeSeriesDataset(test_data_in_test, test_data_out_test)
 
     return train_dataset, valid_dataset, test_dataset_test, sc, load_X_shape_1
@@ -486,35 +486,35 @@ def add_model_info_to_json(json_file_path, model_type, model_params, config_para
 
 	
 # Parâmetros de treinamento SHRED SST
-hidden_size=512
-hidden_layers=2
-batch_size=512
-lr=0.000339616258144246
-lambL2=0.06690909217563659
-lambL1=0.02153194639207262
-lambdaSNR=0.6395563408995381
-l1=400
-l2=300
-lags=24
-num_sensors=1
-num_epochs=640
+# hidden_size=512
+# hidden_layers=2
+# batch_size=512
+# lr=0.000339616258144246
+# lambL2=0.06690909217563659
+# lambL1=0.02153194639207262
+# lambdaSNR=0.6395563408995381
+# l1=400
+# l2=300
+# lags=24
+# num_sensors=1
+# num_epochs=640
 
 
 
 
 # Parâmetros de treinamento  CS-SHRED SST
-# num_sensors = 1
-# num_epochs = 397
-# hidden_size= 512
-# hidden_layers= 2
-# batch_size= 64
-# lr= 0.0003084155376282221
-# lambL2= 	0.32200671609131937
-# lambL1= 0.004067181767653566
-# lambdaSNR= 0.0012972234377965058
-# l1= 500
-# l2= 300
-# lags= 36
+num_sensors = 1
+num_epochs = 397
+hidden_size= 512
+hidden_layers= 2
+batch_size= 64
+lr= 0.0003084155376282221
+lambL2= 	0.32200671609131937
+lambL1= 0.004067181767653566
+lambdaSNR= 0.0012972234377965058
+l1= 500
+l2= 300
+lags= 36
 
 
 # Parâmetros de treinamento  CS-SHRED QMAX
@@ -533,7 +533,7 @@ num_epochs=640
 
 
 # Carregamento dos dados
-matrix = load_data(npy_file_path, time_slice=0)
+matrix = load_data(npy_file_path, time_slice=0) #400
 
 begin_time = time.time()
 
@@ -547,7 +547,7 @@ num_cols_subsample = 0.9
 # % dos snapshots serão subamostrados
 num_snapshots_subsample = 0.3
 # Escolha do modelo CS-SHRED/SHRED
-model_type = "SHRED"
+model_type = "CS-SHRED"
 
 # Subamostragem e visualização dos dados
 snapshot = subsample(matrix, num_cols_subsample, num_snapshots_subsample)

@@ -16,7 +16,7 @@ from processdata import TimeSeriesDataset
 # npy_file_path = r"/home/romulo/Downloads/qmax.2m.1836_data_mavg.npy"
 npy_file_path = r"/home/romulo/migoogledrive/shred-jan/pyshred/Data/16_roll7_Re1_Wi3.5_beta0.6666/fields.npy"
 
-save_path = r'./results/csshred/oldroyd/'
+save_path = r'./results/csshred/oldroyd_test/csshred'
 # save_path = r'./results/shred/testes'
 
 # Verifica a disponibilidade de GPU
@@ -57,35 +57,35 @@ def visualize_data(matrix, subsampled):
 
 
 #Subamostragem dos dados
-def subsample(snapshot, num_cols_subsample, num_snapshots_subsample):
+# def subsample(snapshot, num_cols_subsample, num_snapshots_subsample):
     
-    np.random.seed(1001)
+#     np.random.seed(1001)
 
-    print('snapshot', snapshot.shape)
+#     print('snapshot', snapshot.shape)
 
-    snapshot = np.transpose(snapshot, (1, 2, 0))
-    dim_x, dim_y, dim_t = snapshot.shape
-    snapshot_subsampled = snapshot.copy()
+#     snapshot = np.transpose(snapshot, (1, 2, 0))
+#     dim_x, dim_y, dim_t = snapshot.shape
+#     snapshot_subsampled = snapshot.copy()
 
-    # Escolha aleatória das colunas a serem mantidas (não subamostradas)
-    cols_to_keep = np.random.choice(dim_y, size=dim_y - num_cols_subsample, replace=False)
-    cols_to_keep = sorted(cols_to_keep)
+#     # Escolha aleatória das colunas a serem mantidas (não subamostradas)
+#     cols_to_keep = np.random.choice(dim_y, size=dim_y - num_cols_subsample, replace=False)
+#     cols_to_keep = sorted(cols_to_keep)
 
-    # Escolha aleatória dos snapshots a serem mantidos (não subamostrados)
-    snapshots_to_keep = np.random.choice(dim_t, size=dim_t - num_snapshots_subsample, replace=False)
+#     # Escolha aleatória dos snapshots a serem mantidos (não subamostrados)
+#     snapshots_to_keep = np.random.choice(dim_t, size=dim_t - num_snapshots_subsample, replace=False)
 
-    # Criar uma máscara de uns
-    mask = np.ones((dim_x, dim_y, dim_t), dtype=bool)
+#     # Criar uma máscara de uns
+#     mask = np.ones((dim_x, dim_y, dim_t), dtype=bool)
 
-    # Definir os valores a serem subamostrados como False na máscara
-    mask[:, cols_to_keep, :] = False
-    mask[:, :, snapshots_to_keep] = False
+#     # Definir os valores a serem subamostrados como False na máscara
+#     mask[:, cols_to_keep, :] = False
+#     mask[:, :, snapshots_to_keep] = False
 
-    # Aplicar a máscara
-    snapshot_subsampled[mask] = 0
+#     # Aplicar a máscara
+#     snapshot_subsampled[mask] = 0
 
-    print("Forma do snapshot após subamostragem:", snapshot_subsampled.shape)
-    return snapshot_subsampled
+#     print("Forma do snapshot após subamostragem:", snapshot_subsampled.shape)
+#     return snapshot_subsampled
 
 
 
@@ -113,6 +113,96 @@ def subsample(snapshot, num_cols_subsample, num_snapshots_subsample):
 
 #     print("Forma do snapshot após subamostragem:", snapshot_subsampled.shape)
 #     return snapshot_subsampled
+
+
+
+# def subsample(snapshot, num_cols_subsample, num_snapshots_subsample):
+    
+#     np.random.seed(1001)
+
+#     print('snapshot', snapshot.shape)
+
+#     snapshot = np.transpose(snapshot, (1, 2, 0))
+#     dim_x, dim_y, dim_t = snapshot.shape
+#     snapshot_subsampled = snapshot.copy()
+
+#     # Escolha aleatória das colunas a serem mantidas (não subamostradas)
+#     cols_to_keep = np.random.choice(dim_y, size=dim_y - num_cols_subsample, replace=False)
+#     cols_to_keep = sorted(cols_to_keep)
+
+#     # Escolha aleatória dos snapshots a serem mantidos (não subamostrados)
+#     snapshots_to_keep = np.random.choice(dim_t, size=dim_t - num_snapshots_subsample, replace=False)
+
+#     # Criar uma máscara de uns
+#     mask = np.ones((dim_x, dim_y, dim_t), dtype=bool)
+
+#     # Definir os valores a serem subamostrados como False na máscara
+#     mask[:, cols_to_keep, :] = False
+#     mask[:, :, snapshots_to_keep] = False
+
+#     # Aplicar a máscara
+#     snapshot_subsampled[mask] = 0
+
+#     print("Forma do snapshot após subamostragem:", snapshot_subsampled.shape)
+#     return snapshot_subsampled
+
+
+
+def subsample(snapshot, num_cols_subsample, num_snapshots_subsample):
+    np.random.seed(1001)
+
+    print('snapshot', snapshot.shape)
+
+    snapshot = np.transpose(snapshot, (1, 2, 0))
+    dim_x, dim_y, dim_t = snapshot.shape
+    snapshot_subsampled = snapshot.copy()
+
+    # Garantir que num_snapshots_subsample seja menor que dim_t
+    num_snapshots_subsample = min(num_snapshots_subsample, dim_t - 1)
+    
+    # Escolha aleatória das colunas a serem subamostradas
+    # Garantindo que não subamostre todas as colunas
+    num_cols_subsample = min(num_cols_subsample, dim_y - 1)  # Sempre manter pelo menos uma coluna
+    cols_to_subsample = np.random.choice(dim_y, size=num_cols_subsample, replace=False)
+    cols_to_subsample = np.sort(cols_to_subsample)
+
+    # Escolha aleatória dos snapshots, excluindo o último inicialmente
+    available_snapshots = np.arange(dim_t - 1)
+    snapshots_to_subsample = np.random.choice(
+        available_snapshots, 
+        size=num_snapshots_subsample - 1, 
+        replace=False
+    )
+    # Adiciona o último snapshot
+    snapshots_to_subsample = np.append(snapshots_to_subsample, dim_t - 1)
+    snapshots_to_subsample = np.sort(snapshots_to_subsample)
+
+    # Criar uma máscara inicialmente False (manter todos os dados)
+    mask = np.zeros((dim_x, dim_y, dim_t), dtype=bool)
+
+    # Aplicar subamostragem apenas nas colunas e snapshots selecionados
+    for t in snapshots_to_subsample:
+        mask[:, cols_to_subsample, t] = True
+
+    # Verificar se não estamos zerando dados demais
+    total_points = dim_x * dim_y * dim_t
+    masked_points = np.sum(mask)
+    if masked_points / total_points > 0.95:  # Se mais de 95% dos pontos forem mascarados
+        print("Aviso: Muitos pontos sendo mascarados. Ajustando...")
+        return snapshot_subsampled  # Retorna sem subamostragem
+
+    # Aplicar a máscara
+    snapshot_subsampled[mask] = 0
+
+    # Verificação final
+    if np.all(snapshot_subsampled == 0):
+        print("Aviso: Todos os valores foram zerados. Retornando dados originais...")
+        return snapshot
+
+    print("Forma do snapshot após subamostragem:", snapshot_subsampled.shape)
+    print(f"Porcentagem de dados mantidos: {100 * (1 - np.sum(mask)/mask.size):.2f}%")
+    return snapshot_subsampled
+
 
 # Configuração dos sensores
 def plot_dynamics_at_sensors(
@@ -160,7 +250,7 @@ def plot_dynamics_at_sensors(
             X, Y, trace_A[:, :, -1].real, shading="auto", cmap="coolwarm"
         )
         fig.colorbar(cmap, ax=ax1, label=r"$Tr(C)$")
-        ax1.set_title("Espatial Distribution of The $Tr(C)$")
+        ax1.set_title("Spatial Distribution of The $Tr(C)$")
         ax1.set_xlabel("X")
         ax1.set_ylabel("Y")
 
@@ -250,7 +340,7 @@ def prepare_datasets(trace_A, trace_A_ori, num_sensors, sensor_locations, lags):
     sc = sc.fit(load_X[train_indices])
     transformed_X = sc.transform(load_X)
 
-    sc_test = sc.fit(load_X_test[train_indices])
+    # sc_test = sc.fit(load_X_test[train_indices])
     transformed_X_test = sc.transform(load_X_test)
 
     all_data_in = np.zeros((load_X_shape_0 - lags, lags, num_sensors))

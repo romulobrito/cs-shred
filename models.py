@@ -203,9 +203,9 @@ class CSSHRED(nn.Module):
         self.dropout = nn.Dropout(dropout)
 
         # Aplicando inicialização Xavier para as camadas lineares
-        # nn.init.xavier_uniform_(self.linear1.weight)
-        # nn.init.xavier_uniform_(self.linear2.weight)
-        # nn.init.xavier_uniform_(self.linear3.weight)
+        nn.init.xavier_uniform_(self.linear1.weight)
+        nn.init.xavier_uniform_(self.linear2.weight)
+        nn.init.xavier_uniform_(self.linear3.weight)
 
         self.hidden_layers = hidden_layers
         self.hidden_size = hidden_size
@@ -647,16 +647,16 @@ def fit_csshred_model(
                 l2_reg += torch.norm(param, p=2)
 
             # Ajustando a perda para incentivar a maximização do SNR
-            if snr >= 0:
+            if snr > 0:
                 loss = (
-                    1 / snr * lambdaSNR
+                    torch.clamp(1 / (snr + 1e-8), max=100.0) * lambdaSNR
                     + lambL2 * lossMSE
                     + lambL1 * lossL1
                     + weight_decay * l2_reg
                 )  # Quanto maior o SNR, menor será a perda
             else:
                 loss = (
-                    snr * lambdaSNR
+                    - snr * lambdaSNR
                     + lambL2 * lossMSE
                     + lambL1 * lossL1
                     + weight_decay * l2_reg
@@ -679,9 +679,9 @@ def fit_csshred_model(
                 val_snr = calculate_snr(valid_dataset.Y, val_outputs)
 
                 # Ajustando a perda de validação para incentivar a maximização do SNR
-                if val_snr >= 0:
+                if val_snr > 0:
                     val_loss = (
-                        1 / val_snr * lambdaSNR + lambL2 * lossMSE + lambL1 * lossL1
+                        torch.clamp(1 / (val_snr + 1e-8), max=100.0)  * lambdaSNR + lambL2 * lossMSE + lambL1 * lossL1
                     )
                 else:
                     val_loss = val_snr * lambdaSNR + lambL2 * lossMSE + lambL1 * lossL1
