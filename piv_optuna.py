@@ -16,22 +16,23 @@ device = "cuda" if torch.cuda.is_available() else "cpu"
 print(f"Using device: {device}")
 
 # Função para carregar dados de um arquivo .npy
-def load_data(npy_file_path):
-    data_array = np.load(npy_file_path, allow_pickle=True)
-    data_array = data_array.item()
-    data_array = data_array["trace_A"].copy()
+def load_data(npy_file_path, time_slice):
+    data_array = np.load(npy_file_path)
+    data_array = data_array[:,:,: time_slice]
+    data_array = np.transpose(data_array, (2,0,1))
     print("Loaded data dimensions:", data_array.shape)
     return data_array
 
 
 # Visualização dos dados 2D ou 3D
-def visualize_data(matrix, subsampled):
+def visualize_data(matrix, subsampled, results_dir):
     plt.imshow(matrix[-1, :, :], cmap="Spectral", origin="lower")
     plt.colorbar()
     plt.title("Last Temporal Slice")
     plt.xlabel("Longitude")
     plt.ylabel("Latitude")
     plt.show()
+    plt.savefig(os.path.join(results_dir, f"last_temporal_slice.png"))
 
     plt.imshow(subsampled[:, :, -1], cmap="Spectral", origin="lower")
     plt.colorbar()
@@ -39,6 +40,8 @@ def visualize_data(matrix, subsampled):
     plt.xlabel("Longitude")
     plt.ylabel("Latitude")
     plt.show()
+
+    plt.savefig(os.path.join(results_dir, f"last_temporal_subsampled_slice.png"))
 
 
 
@@ -77,7 +80,7 @@ def subsample(snapshot, num_cols_subsample, num_snapshots_subsample):
 
     print('snapshot', snapshot.shape)
 
-    # snapshot = np.transpose(snapshot, (1, 2, 0))
+    snapshot = np.transpose(snapshot, (1, 2, 0))
     # print('snapshot after transpose', snapshot.shape)
     dim_x, dim_y, dim_t = snapshot.shape
     snapshot_subsampled = snapshot.copy()
@@ -131,7 +134,7 @@ def subsample(snapshot, num_cols_subsample, num_snapshots_subsample):
 
 # Configuração dos sensores
 def plot_dynamics_at_sensors(
-    trace_A, num_sensors, locations="c", show_plot=False, seed=101
+    trace_A, num_sensors, trial_number, results_dir, locations="c", show_plot=False, seed=101
 ):
     np.random.seed(seed)
 
@@ -200,6 +203,7 @@ def plot_dynamics_at_sensors(
 
     plt.tight_layout()
     plt.show()
+    plt.savefig(os.path.join(results_dir, f"{trial_number}_{num_sensors}_sensors_dynamics.png"))
 
     return sensor_locations, sensor_positions_x, sensor_positions_y
 
@@ -269,35 +273,37 @@ def evaluate_model(model, test_dataset, test_dataset_test, sc):
 
 def objective(trial):
     # Caminho do arquivo .npy
-    npy_file_path = r"/home/romulo/migoogledrive/shred-jan/pyshred/Data/16_roll7_Re1_Wi3.5_beta0.6666/fields.npy"
+    npy_file_path =  r'/home/romulo/Documentos/lpips-env/data/turb_vy_combined.npy'
     # Criação do diretório para armazenar os resultados
-    results_dir = r"/home/romulo/Documentos/cs-shred-clean/results/csshred/seismic"
+    results_dir = r"/home/romulo/Documentos/lpips-env/results/csshred/piv_SHRED/optuna"
     os.makedirs(results_dir, exist_ok=True)
 
     # Carregamento dos dados
-    matrix = load_data(npy_file_path)
+    matrix = load_data(npy_file_path, time_slice=650)
+    
 
-    model_type = 'CSSHRED'
+    # model_type = 'CSSHRED'
+    model_type = 'SHRED'
     seed = 915
 
-    hidden_size = trial.suggest_categorical("hidden_size", [32, 64, 128, 256])
+    hidden_size = trial.suggest_categorical("hidden_size", [64, 128, 256])
     hidden_layers = trial.suggest_categorical("hidden_layers", [1, 2, 3])
     batch_size = trial.suggest_categorical("batch_size", [32, 64, 128, 256])
     lr = trial.suggest_float("lr", 1e-4, 1e-1, log=True)
-    lambL2 = trial.suggest_float("lambL2", 1e-5, 1e0, log=True)
-    lambL1 = trial.suggest_float("lambL1", 1e-5, 1e0, log=True)
-    lambdaSNR = trial.suggest_float("lambdaSNR", 1e-5, 1e0, log=True)
+    lambL2 = trial.suggest_float("lambL2", 1e-5, 1, log=True)
+    lambL1 = trial.suggest_float("lambL1", 1e-5, 1, log=True)
+    lambdaSNR = trial.suggest_float("lambdaSNR", 1e-5, 1, log=True)
     l1 = trial.suggest_categorical("l1", [300, 400, 500])
     l2 = trial.suggest_categorical("l2", [300, 400, 500])
-    lags = trial.suggest_categorical("lags", [5, 10, 15, 20])
-    num_sensors = trial.suggest_categorical("num_sensors", [1, 2, 3])
-    num_epochs = trial.suggest_int("num_epochs", 300, 2000)
-
+    lags = trial.suggest_categorical("lags", [15, 20, 40])
+    num_sensors = trial.suggest_categorical("num_sensors", [1, 3, 5])
+    num_epochs = trial.suggest_int("num_epochs", 500, 2000)
+    step_epoch = trial.suggest_int("step_epoch", 10, 50)
     # Novos parâmetros para otimização
-    l1_tol = trial.suggest_float("l1_tol", 1e-6, 1e-2, log=True)
-    opt_tol = trial.suggest_float("opt_tol", 1e-6, 1e-2, log=True)
-    ls_tol = trial.suggest_float("ls_tol", 1e-6, 1e-2, log=True)
-    dropout = trial.suggest_float("dropout", 0.0, 0.5) 
+    l1_tol = trial.suggest_float("l1_tol", 1e-5, 1, log=True)
+    opt_tol = trial.suggest_float("opt_tol", 1e-5, 1, log=True)
+    ls_tol = trial.suggest_float("ls_tol", 1e-5, 1, log=True)
+    dropout = trial.suggest_float("dropout", 0.01, 0.011) 
     
 
     # Adicionar print dos novos parâmetros
@@ -317,7 +323,9 @@ def objective(trial):
     print("l2=", l2)
     print("lags=", lags)
     print("num_sensors=", num_sensors)
-    print("num_epochs=", num_epochs)  
+    print("num_epochs=", num_epochs)
+    print("step_epoch=", step_epoch)
+
 
     # Atualize as variáveis globais ou crie novos dados com os novos lags
     global all_data_in, train_data_in, valid_data_in, test_data_in
@@ -325,12 +333,19 @@ def objective(trial):
 
     # Subamostragem e visualização dos dados
     snapshot = matrix.copy()
-    num_cols_subsample = int(snapshot.shape[2] * 0.9)  # % das colunas serão subamostradas
-    num_snapshots_subsample = int(snapshot.shape[0] * 0.8)  #  % dos snapshots serão subamostrados
+    num_cols_subsample = int(snapshot.shape[2] * 0.3)  # % das colunas serão subamostradas
+    num_snapshots_subsample = int(snapshot.shape[0] * 0.3)  #  % dos snapshots serão subamostrados
     snapshot = subsample(snapshot, num_cols_subsample, num_snapshots_subsample)
+    visualize_data(matrix,snapshot, results_dir)
     
     sensor_locations, sensor_positions_x, sensor_positions_y = plot_dynamics_at_sensors(
-        snapshot, num_sensors, locations="c", show_plot=False, seed=seed
+        snapshot, 
+        num_sensors,
+        trial_number=trial.number,
+        results_dir=results_dir,
+        locations="c", 
+        show_plot=False, 
+        seed=seed
     )
 
     trace_A = snapshot.copy()
@@ -444,6 +459,7 @@ def objective(trial):
             num_epochs=num_epochs,  # Incluindo num_epochs
             lr=lr,
             lambL2=lambL2,
+            step_epoch=step_epoch,
             lambL1=lambL1,
             lambdaSNR=lambdaSNR,
             verbose=False,
@@ -466,6 +482,7 @@ def objective(trial):
             num_epochs=num_epochs,
             batch_size=batch_size,
             lr=lr,
+            step_epoch=step_epoch,
             verbose=False,
             patience=15,
         )
@@ -506,9 +523,11 @@ def objective(trial):
             "lags": lags,
             "num_sensors": num_sensors,
             "num_epochs": num_epochs,  
+            "step_epoch": step_epoch,
             "error_norm": float(error_norm),
             "validation_errors": np.mean(validation_errors),           
             "ssim_score": float(ssim_score),
+            
         }
         json.dump(results, f, indent=4)
 
@@ -517,10 +536,10 @@ def objective(trial):
 
 # Configuração do estudo do Optuna old
 study = optuna.create_study(direction="minimize")
-study.optimize(objective, n_trials=10)
+study.optimize(objective, n_trials=55)
 
 # Salvando os resultados do estudo
-results_dir = r"/home/romulo/Documentos/cs-shred-clean/results/csshred/seismic"
+results_dir = r"/home/romulo/Documentos/lpips-env/results/csshred/piv_SHRED/optuna"
 os.makedirs(results_dir, exist_ok=True)
 
 # Extrair e imprimir o melhor ensaio
@@ -546,6 +565,7 @@ best_params = {
     "l1_tol": float(trial.params.get("l1_tol")),
     "opt_tol": float(trial.params.get("opt_tol")),
     "ls_tol": float(trial.params.get("ls_tol")),
+    "step_epoch": trial.params.get("step_epoch"),
 }
 
 # Adicionar os resultados das métricas

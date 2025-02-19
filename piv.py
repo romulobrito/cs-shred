@@ -11,14 +11,19 @@ import time
 import models
 from processdata import TimeSeriesDataset
 
+# Dado velo_256 velo_257.h5 velo_258.h5 
+# Fonte: https://smart-turb.roma2.infn.it/init/routes/#/logging/view_dataset/1/tabfile
+
+
+
+
 # Caminho do arquivo .npy
 # npy_file_path = r"/home/romulo/Downloads/prmsl_data.npy"
 # npy_file_path = r"/home/romulo/Downloads/qmax.2m.1836_data_mavg.npy"
-npy_file_path = r"/home/romulo/migoogledrive/shred-jan/pyshred/Data/16_roll7_Re1_Wi3.5_beta0.6666/fields.npy"
+npy_file_path = r'/home/romulo/Documentos/lpips-env/data/turb_vy_combined.npy'
 
 # save_path = r'./results/csshred/oldroyd_test/csshred'
-# save_path = r"/home/romulo/Documentos/lpips-env/results/csshred/oldroyd_paper"
-save_path = r"/home/romulo/Documentos/lpips-env/results/shred/oldroyd_no_sub"
+save_path = r"/home/romulo/Documentos/lpips-env/results/csshred/piv_SHRED"
 
 # Verifica a disponibilidade de GPU
 device = "cuda" if torch.cuda.is_available() else "cpu"
@@ -26,11 +31,8 @@ print(f"Using device: {device}")
 
 # Função para carregar dados de um arquivo .npy
 def load_data(npy_file_path, time_slice):
-    data_array = data = np.load(
-    npy_file_path,allow_pickle=True
-    )
-    data_array = data_array.item()["trace_A"]
-    data_array = data_array[:,:,time_slice:]
+    data_array = np.load(npy_file_path)
+    data_array = data_array[:,:,: time_slice]
     data_array = np.transpose(data_array, (2,0,1))
     print("Loaded data dimensions:", data_array.shape)
     return data_array
@@ -41,21 +43,21 @@ def load_data(npy_file_path, time_slice):
 def visualize_data(matrix, subsampled):
     # Plot para o último slice temporal da matriz
     plt.imshow(matrix[-1, :, :], cmap="viridis", origin="lower")
-    plt.colorbar()
+    # plt.colorbar()
     plt.title("Last Temporal Slice")
     plt.xlabel("X")
     plt.ylabel("Y")
-    plt.savefig(save_path + r'/last_temporal_slice.png')
+    plt.savefig(save_path + r"/last_temporal_slice.png")
     plt.show()
 
 
     # Plot para o último slice temporal da matriz subsample
     plt.imshow(subsampled[:, :, -1], cmap="viridis", origin="lower")
-    plt.colorbar()
+    # plt.colorbar()
     plt.title("Last Temporal Slice (Subsampled)")
     plt.xlabel("X")
     plt.ylabel("Y")
-    plt.savefig(save_path + r'/last_temporal_slice_subsampled.png')
+    plt.savefig(save_path + r"/last_temporal_slice_subsampled.png")
     plt.show()
 
 
@@ -253,8 +255,8 @@ def plot_dynamics_at_sensors(
         cmap = ax1.pcolormesh(
             X, Y, trace_A[:, :, -1].real, shading="auto", cmap="viridis"
         )
-        fig.colorbar(cmap, ax=ax1, label=r"$Tr(C)$")
-        ax1.set_title("Spatial Distribution of The $Tr(C)$")
+        fig.colorbar(cmap, ax=ax1, label=r"$|v_y|$")
+        ax1.set_title("Velocity field $|v_y|$")
         ax1.set_xlabel("X")
         ax1.set_ylabel("Y")
 
@@ -271,7 +273,7 @@ def plot_dynamics_at_sensors(
             ax2.plot(range(dim_t), sensor_data, label=f"Sensor {i+1}")
 
         ax2.set_xlabel("Time Step")
-        ax2.set_ylabel("Amplitude")
+        ax2.set_ylabel("Amplitude Velocity $v_y$")
         ax2.set_title("Dynamics at Sensor Positions")
         ax2.legend()
         ax2.grid(True)
@@ -519,27 +521,21 @@ def add_model_info_to_json(json_file_path, model_type, model_params, config_para
 # Parâmetros comuns
 seed = 915
 verbose = True
-patience = 10
-step_epoch = 50
+patience = 15
+step_epoch = 15
 # Escolha do modelo CS-SHRED/SHRED
-# model_type = "CS-SHRED"
 model_type = "SHRED"
+
 # Carregamento dos dados
-matrix = load_data(npy_file_path, time_slice=0)
+matrix = load_data(npy_file_path, time_slice=650)
 
 begin_time = time.time()
 
 
 # Subamostragem e visualização dos dados
-num_cols_subsample = int(matrix.shape[2] * 0.9)  # % das colunas serão subamostradas
-num_snapshots_subsample = int(matrix.shape[0] * 0.8)  #  % dos snapshots serão subamostrados
+num_cols_subsample = int(matrix.shape[2] * 0.3)  # % das colunas serão subamostradas
+num_snapshots_subsample = int(matrix.shape[0] * 0.3)  #  % dos snapshots serão subamostrados
 snapshot = subsample(matrix, num_cols_subsample, num_snapshots_subsample)
-
-# For no subsampled
-# snapshot = matrix
-# snapshot = np.transpose(matrix.copy(), (1, 2, 0))
-
-
 visualize_data(matrix, snapshot)
 
 
@@ -619,42 +615,63 @@ visualize_data(matrix, snapshot)
 # num_sensors=1
 # num_epochs=1497
 
-# hidden_size=256
-# hidden_layers=2
-# batch_size=128
-# lr=0.009105313911835387
-# lambL2=0.0020812478230185227
-# lambL1=0.0006642105270922048
-# lambdaSNR=0.21864393224582046
-# l1=400
-# l2=400
-# lags=15
-# num_sensors=1
-# num_epochs=471
-# dropout= 0 #0.48076455902263865
-# l1_tol=0.0000355838144226626
-# opt_tol=0.000025245863982583535
-# ls_tol=0.0005154367482338618
+# Parâmetros de treinamento  CS-SHRED https://smart-turb.roma2.infn.it/init/routes/#/logging/view_dataset/1/tabfile
+# Trial 3 file:///home/romulo/Documentos/lpips-env/results/csshred/piv/optuna/3_results.json
+# slice= 650 best
+
+# hidden_size	=256
+# hidden_layers	=3
+# batch_size	=32
+# lr	=0.0014895148717872114
+# lambL2	=0.25133548312126097
+# lambL1	=0.009143671952434464
+# lambdaSNR	=0.8552022070995943
+# dropout	=0.011141643426664962
+# l1_tol	=0.6262568649879984
+# opt_tol	=0.00003164836283882765
+# ls_tol	=0.00008094106441590975
+# l1	=400
+# l2	=400
+# lags	=15
+# num_sensors	=5
+# num_epochs	=913 
+# step_epoch	=28
+
+
+# SHRED Turb 
+hidden_size	=128
+hidden_layers	=3
+batch_size	=128
+lr	=0.005878894964721222
+lambL2	=0.2358966667175767
+lambL1	=0.0032743141604346126
+lambdaSNR	=0.0764446281191567
+dropout	=0.01043954387600347
+l1_tol	=0.000036726695633784415
+opt_tol	=0.000023951009540287297
+ls_tol	=0.003605803632395063
+l1	=300
+l2	=500
+lags	=15
+num_sensors	=5
+num_epochs	=1871
+step_epoch	=23
 
 
 
 # Parâmetros de treinamento  SHRED oldroyd
-hidden_size= 128
-hidden_layers= 1
-batch_size= 128
-lr= 0.03420381377030703
-lambL2= 0.15932806526755558
-lambL1= 0.006647369864904643
-lambdaSNR= 0.04274742006188003
-l1= 300
-l2= 400
-lags= 20
-num_sensors= 1
-num_epochs= 665
-l1_tol=0.
-opt_tol=0.
-ls_tol=0.
-dropout=0.
+# hidden_size= 128
+# hidden_layers= 1
+# batch_size= 128
+# lr= 0.03420381377030703
+# lambL2= 0.15932806526755558
+# lambL1= 0.006647369864904643
+# lambdaSNR= 0.04274742006188003
+# l1= 300
+# l2= 400
+# lags= 20
+# num_sensors= 1
+# num_epochs= 665
 
 # hidden_size=32
 # hidden_layers=1
@@ -716,7 +733,7 @@ if model_type == "CS-SHRED":
     )
 else:
     # Instanciação e configuração do modelo SHRED
-    model = models.SHRED(  
+    model = models.SHRED(  # 64
         num_sensors,
         load_X_shape_1,
         hidden_size=hidden_size,

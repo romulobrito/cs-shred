@@ -610,7 +610,7 @@ def fit_csshred_model(
     lambL2=1,
     lambL1=0.01,
     lambdaSNR=0.03,
-    step_epoch=50,
+    step_epoch=15,
     verbose=False,
     patience=5,
 ):
