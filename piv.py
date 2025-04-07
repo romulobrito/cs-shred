@@ -23,7 +23,8 @@ from processdata import TimeSeriesDataset
 npy_file_path = r'/home/romulo/Documentos/lpips-env/data/turb_vy_combined.npy'
 
 # save_path = r'./results/csshred/oldroyd_test/csshred'
-save_path = r"/home/romulo/Documentos/lpips-env/results/csshred/piv_SHRED"
+# save_path = r"/home/romulo/Documentos/lpips-env/results/csshred/piv_SHRED"
+save_path = r"/home/romulo/Documentos/lpips-env/results/csshred/piv"
 
 # Verifica a disponibilidade de GPU
 device = "cuda" if torch.cuda.is_available() else "cpu"
@@ -524,7 +525,7 @@ verbose = True
 patience = 15
 step_epoch = 15
 # Escolha do modelo CS-SHRED/SHRED
-model_type = "SHRED"
+model_type = "CS-SHRED"
 
 # Carregamento dos dados
 matrix = load_data(npy_file_path, time_slice=650)
@@ -619,43 +620,43 @@ visualize_data(matrix, snapshot)
 # Trial 3 file:///home/romulo/Documentos/lpips-env/results/csshred/piv/optuna/3_results.json
 # slice= 650 best
 
-# hidden_size	=256
-# hidden_layers	=3
-# batch_size	=32
-# lr	=0.0014895148717872114
-# lambL2	=0.25133548312126097
-# lambL1	=0.009143671952434464
-# lambdaSNR	=0.8552022070995943
-# dropout	=0.011141643426664962
-# l1_tol	=0.6262568649879984
-# opt_tol	=0.00003164836283882765
-# ls_tol	=0.00008094106441590975
-# l1	=400
-# l2	=400
-# lags	=15
-# num_sensors	=5
-# num_epochs	=913 
-# step_epoch	=28
+hidden_size	=256
+hidden_layers	=3
+batch_size	=32
+lr	=0.0014895148717872114
+lambL2	=0.25133548312126097
+lambL1	=0.009143671952434464
+lambdaSNR	=0.8552022070995943
+dropout	=0.011141643426664962
+l1_tol	=0.6262568649879984
+opt_tol	=0.00003164836283882765
+ls_tol	=0.00008094106441590975
+l1	=400
+l2	=400
+lags	=15
+num_sensors	=5
+num_epochs	=913 
+step_epoch	=28
 
 
 # SHRED Turb 
-hidden_size	=128
-hidden_layers	=3
-batch_size	=128
-lr	=0.005878894964721222
-lambL2	=0.2358966667175767
-lambL1	=0.0032743141604346126
-lambdaSNR	=0.0764446281191567
-dropout	=0.01043954387600347
-l1_tol	=0.000036726695633784415
-opt_tol	=0.000023951009540287297
-ls_tol	=0.003605803632395063
-l1	=300
-l2	=500
-lags	=15
-num_sensors	=5
-num_epochs	=1871
-step_epoch	=23
+# hidden_size	=128
+# hidden_layers	=3
+# batch_size	=128
+# lr	=0.005878894964721222
+# lambL2	=0.2358966667175767
+# lambL1	=0.0032743141604346126
+# lambdaSNR	=0.0764446281191567
+# dropout	=0.01043954387600347
+# l1_tol	=0.000036726695633784415
+# opt_tol	=0.000023951009540287297
+# ls_tol	=0.003605803632395063
+# l1	=300
+# l2	=500
+# lags	=15
+# num_sensors	=5
+# num_epochs	=1871
+# step_epoch	=23
 
 
 

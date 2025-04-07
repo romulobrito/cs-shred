@@ -522,8 +522,8 @@ verbose = True
 patience = 10
 step_epoch = 50
 # Escolha do modelo CS-SHRED/SHRED
-# model_type = "CS-SHRED"
-model_type = "SHRED"
+model_type = "CS-SHRED"
+# model_type = "SHRED"
 # Carregamento dos dados
 matrix = load_data(npy_file_path, time_slice=0)
 
@@ -619,42 +619,42 @@ visualize_data(matrix, snapshot)
 # num_sensors=1
 # num_epochs=1497
 
-# hidden_size=256
-# hidden_layers=2
-# batch_size=128
-# lr=0.009105313911835387
-# lambL2=0.0020812478230185227
-# lambL1=0.0006642105270922048
-# lambdaSNR=0.21864393224582046
-# l1=400
-# l2=400
-# lags=15
-# num_sensors=1
-# num_epochs=471
-# dropout= 0 #0.48076455902263865
-# l1_tol=0.0000355838144226626
-# opt_tol=0.000025245863982583535
-# ls_tol=0.0005154367482338618
+hidden_size=256
+hidden_layers=2
+batch_size=128
+lr=0.009105313911835387
+lambL2=0.0020812478230185227
+lambL1=0.0006642105270922048
+lambdaSNR=0.21864393224582046
+l1=400
+l2=400
+lags=15
+num_sensors=3#1
+num_epochs=471
+dropout= 0 #0.48076455902263865
+l1_tol=0.0000355838144226626
+opt_tol=0.000025245863982583535
+ls_tol=0.0005154367482338618
 
 
 
 # Parâmetros de treinamento  SHRED oldroyd
-hidden_size= 128
-hidden_layers= 1
-batch_size= 128
-lr= 0.03420381377030703
-lambL2= 0.15932806526755558
-lambL1= 0.006647369864904643
-lambdaSNR= 0.04274742006188003
-l1= 300
-l2= 400
-lags= 20
-num_sensors= 1
-num_epochs= 665
-l1_tol=0.
-opt_tol=0.
-ls_tol=0.
-dropout=0.
+# hidden_size= 128
+# hidden_layers= 1
+# batch_size= 128
+# lr= 0.03420381377030703
+# lambL2= 0.15932806526755558
+# lambL1= 0.006647369864904643
+# lambdaSNR= 0.04274742006188003
+# l1= 300
+# l2= 400
+# lags= 20
+# num_sensors= 1
+# num_epochs= 665
+# l1_tol=0.
+# opt_tol=0.
+# ls_tol=0.
+# dropout=0.
 
 # hidden_size=32
 # hidden_layers=1
@@ -697,7 +697,7 @@ if model_type == "CS-SHRED":
         ls_tol= ls_tol,
         n_sparsity_threshold=num_snapshots_subsample,
         verbosity=0,
-        show_plot=False,
+        show_plot=True,
 ).to(device)
     train_error, validation_errors = train_and_validate_model(
         model_type,

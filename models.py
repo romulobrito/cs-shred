@@ -263,78 +263,38 @@ class CSSHRED(nn.Module):
             #     plt.show()
             # i=1
             # if i==1 or i%50==0:
-            #     plt.plot(
-            #         x[:, 0, 0].detach().cpu().numpy(),
-            #         label=f"Subsampled Signal (Column {0}, Channel {0})",
-            #         color="red",
-                
-            #     )
-            #     plt.plot(
-            #         recovered_signals_per_column[0],
-            #         label=f"Recovered Signal (Column {1})",
-            #         color="green",
-            #         linestyle='--'
-            #     )
-        
-            #     plt.xlabel("Time")
-            #     plt.ylabel("Amplitude")
-            #     plt.legend()
-            #     plt.grid(True)
-            #     plt.show()
-
-            #     plt.plot(
-            #         x[:, 0, 1].detach().cpu().numpy(),
-            #         label=f"Subsampled Signal (Column {0}, Channel {1})",
-            #         color="red",
-            #     )
-            #     plt.plot(
-            #         recovered_signals_per_column[1],
-            #         label=f"Recovered Signal (Column {2})",
-            #         color="green",
-            #         linestyle='--'
-            #     )
+            plt.plot(
+                x[:, 0, 0].detach().cpu().numpy(),
+                label=f"Subsampled Signal (Column {0}, Channel {0})",
+                color="red", linewidth=5
             
-            #     plt.xlabel("Time")
-            #     plt.ylabel("Amplitude")
-            #     plt.legend()
-            #     plt.grid(True)
-            #     plt.show()
-            # i+=1
-
-            # plt.plot(
-            #     x[:, 0, 2].detach().cpu().numpy(),
-            #     label=f"Subsampled Signal (Column {0}, Channel {2})",
-            #     color="red",
-            # )
-            # plt.plot(
-            #     recovered_signals_per_column[2],
-            #     label=f"Recovered Signal (Column {3})",
-            #     color="green",
-            #     linestyle='--'
-            # )
-            
+            )
             # plt.xlabel("Time")
             # plt.ylabel("Amplitude")
             # plt.legend()
-            # plt.grid(True)
+            # plt.grid(False)
             # plt.show()
-
-            # plt.plot(
-            #     x[:, 0, 3].detach().cpu().numpy(),
-            #     label=f"Subsampled Signal (Column {0}, Channel {2})",
-            #     color="red",
-            # )
-            # plt.plot(
-            #     recovered_signals_per_column[3],
-            #     label=f"Recovered Signal (Column {4})",
-            #     color="green",
-            # )
-            
+            plt.plot(
+                x[:, 0, 1].detach().cpu().numpy()+1,
+                label=f"Subsampled Signal (Column {0}, Channel {1})",
+                color="green", linewidth=5
+            )
             # plt.xlabel("Time")
             # plt.ylabel("Amplitude")
             # plt.legend()
-            # plt.grid(True)
+            # plt.grid(False)
             # plt.show()
+            plt.plot(
+                x[:, 0, 2].detach().cpu().numpy()+2,
+                label=f"Subsampled Signal (Column {0}, Channel {2})",
+                color="blue", linewidth=5
+            )
+            
+            plt.xlabel("Time")
+            plt.ylabel("Amplitude")
+            # plt.legend()
+            plt.grid(False)
+            plt.show()
 
 
         h_0 = torch.zeros(
