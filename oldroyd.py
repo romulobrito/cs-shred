@@ -17,8 +17,8 @@ from processdata import TimeSeriesDataset
 npy_file_path = r"/home/romulo/migoogledrive/shred-jan/pyshred/Data/16_roll7_Re1_Wi3.5_beta0.6666/fields.npy"
 
 # save_path = r'./results/csshred/oldroyd_test/csshred'
-# save_path = r"/home/romulo/Documentos/lpips-env/results/csshred/oldroyd_paper"
-save_path = r"/home/romulo/Documentos/lpips-env/results/shred/oldroyd_no_sub"
+save_path = r"/home/romulo/Documentos/lpips-env/results/csshred/oldroyd_paper"
+# save_path = r"/home/romulo/Documentos/lpips-env/results/shred/oldroyd"
 
 # Verifica a disponibilidade de GPU
 device = "cuda" if torch.cuda.is_available() else "cpu"
@@ -210,7 +210,7 @@ def subsample(snapshot, num_cols_subsample, num_snapshots_subsample):
 
 # Configuração dos sensores
 def plot_dynamics_at_sensors(
-    trace_A, num_sensors, locations="c", show_plot=False, save_plot=True, save_path=save_path, file_name="plot_din.png", seed=101,
+    trace_A, num_sensors, locations="c", show_plot=False, save_plot=True, save_path=save_path, file_name="plot_din.pdf", seed=101,
     auto_close_time=5
 ):
     np.random.seed(seed)
@@ -522,7 +522,7 @@ verbose = True
 patience = 10
 step_epoch = 50
 # Escolha do modelo CS-SHRED/SHRED
-model_type = "CS-SHRED"
+model_type = "SHRED"
 # model_type = "SHRED"
 # Carregamento dos dados
 matrix = load_data(npy_file_path, time_slice=0)
@@ -619,42 +619,42 @@ visualize_data(matrix, snapshot)
 # num_sensors=1
 # num_epochs=1497
 
-hidden_size=256
-hidden_layers=2
-batch_size=128
-lr=0.009105313911835387
-lambL2=0.0020812478230185227
-lambL1=0.0006642105270922048
-lambdaSNR=0.21864393224582046
-l1=400
-l2=400
-lags=15
-num_sensors=3#1
-num_epochs=471
-dropout= 0 #0.48076455902263865
-l1_tol=0.0000355838144226626
-opt_tol=0.000025245863982583535
-ls_tol=0.0005154367482338618
+# hidden_size=256
+# hidden_layers=2
+# batch_size=128
+# lr=0.009105313911835387
+# lambL2=0.0020812478230185227
+# lambL1=0.0006642105270922048
+# lambdaSNR=0.21864393224582046
+# l1=400
+# l2=400
+# lags=15
+# num_sensors=3#1
+# num_epochs=471
+# dropout= 0 #0.48076455902263865
+# l1_tol=0.0000355838144226626
+# opt_tol=0.000025245863982583535
+# ls_tol=0.0005154367482338618
 
 
 
 # Parâmetros de treinamento  SHRED oldroyd
-# hidden_size= 128
-# hidden_layers= 1
-# batch_size= 128
-# lr= 0.03420381377030703
-# lambL2= 0.15932806526755558
-# lambL1= 0.006647369864904643
-# lambdaSNR= 0.04274742006188003
-# l1= 300
-# l2= 400
-# lags= 20
-# num_sensors= 1
-# num_epochs= 665
-# l1_tol=0.
-# opt_tol=0.
-# ls_tol=0.
-# dropout=0.
+hidden_size= 128
+hidden_layers= 1
+batch_size= 128
+lr= 0.03420381377030703
+lambL2= 0.15932806526755558
+lambL1= 0.006647369864904643
+lambdaSNR= 0.04274742006188003
+l1= 300
+l2= 400
+lags= 20
+num_sensors= 1
+num_epochs= 665
+l1_tol=0.
+opt_tol=0.
+ls_tol=0.
+dropout=0.
 
 # hidden_size=32
 # hidden_layers=1
@@ -672,7 +672,7 @@ ls_tol=0.0005154367482338618
 
 # Configuração dos sensores
 sensor_locations, sensor_positions_x, sensor_positions_y = plot_dynamics_at_sensors(
-    snapshot, num_sensors, locations="c", show_plot=False, save_plot=True, save_path=save_path, file_name=f"plot_din_{model_type}.png", seed=seed
+    snapshot, num_sensors, locations="c", show_plot=False, save_plot=True, save_path=save_path, file_name=f"plot_din_{model_type}.pdf", seed=seed
 )
 
 # Preparação dos conjuntos de dados
@@ -697,7 +697,7 @@ if model_type == "CS-SHRED":
         ls_tol= ls_tol,
         n_sparsity_threshold=num_snapshots_subsample,
         verbosity=0,
-        show_plot=True,
+        show_plot=False,
 ).to(device)
     train_error, validation_errors = train_and_validate_model(
         model_type,
@@ -832,7 +832,6 @@ else:
         print(f"Results saved in {directory}")
 
     save_to_numpy(test_recons, test_ground_truth, matrix, snapshot, sensor_positions_x, sensor_positions_y, validation_errors, model)
-
 
 
 
