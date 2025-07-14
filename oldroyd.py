@@ -7,17 +7,257 @@ from skimage.metrics import structural_similarity as ssim
 import json
 import os
 import time
+import psutil
+import gc
+from memory_profiler import profile
+import tracemalloc
 
 import models
 from processdata import TimeSeriesDataset
 
+# =============================================================================
+# COMPUTATIONAL COMPLEXITY ANALYSIS FUNCTIONS
+# =============================================================================
+
+class ComplexityAnalyzer:
+    """
+    Classe para analise de complexidade computacional (tempo e memoria)
+    """
+    
+    def __init__(self):
+        self.start_time = None
+        self.start_memory = None
+        self.operation_times = {}
+        self.memory_usage = {}
+        self.complexity_analysis = {}
+        
+    def start_timer(self):
+        """Inicia o timer para medicao de tempo"""
+        self.start_time = time.time()
+        
+    def end_timer(self, operation_name):
+        """Finaliza o timer e registra o tempo de uma operacao"""
+        if self.start_time is not None:
+            elapsed_time = time.time() - self.start_time
+            if operation_name not in self.operation_times:
+                self.operation_times[operation_name] = []
+            self.operation_times[operation_name].append(elapsed_time)
+            print(f"Tempo de {operation_name}: {elapsed_time:.4f} segundos")
+            return elapsed_time
+        return 0
+    
+    def start_memory_tracking(self):
+        """Inicia o monitoramento de memoria"""
+        self.start_memory = psutil.Process().memory_info().rss / 1024 / 1024  # MB
+        tracemalloc.start()
+        
+    def end_memory_tracking(self, operation_name):
+        """Finaliza o monitoramento de memoria e registra o uso"""
+        if self.start_memory is not None:
+            current_memory = psutil.Process().memory_info().rss / 1024 / 1024  # MB
+            memory_used = current_memory - self.start_memory
+            current, peak = tracemalloc.get_traced_memory()
+            
+            if operation_name not in self.memory_usage:
+                self.memory_usage[operation_name] = []
+            
+            self.memory_usage[operation_name].append({
+                'memory_used_mb': memory_used,
+                'current_memory_mb': current / 1024 / 1024,
+                'peak_memory_mb': peak / 1024 / 1024
+            })
+            
+            print(f"Memoria usada em {operation_name}: {memory_used:.2f} MB")
+            print(f"Pico de memoria em {operation_name}: {peak / 1024 / 1024:.2f} MB")
+            
+            tracemalloc.stop()
+            return memory_used
+        return 0
+    
+    def analyze_data_complexity(self, data_shape, operation_name):
+        """
+        Analisa a complexidade computacional baseada na forma dos dados
+        
+        Args:
+            data_shape: Tupla com as dimensoes dos dados
+            operation_name: Nome da operacao sendo analisada
+        """
+        if len(data_shape) == 3:  # (time, height, width)
+            T, H, W = data_shape
+            total_elements = T * H * W
+            
+            # Complexidade de tempo
+            time_complexity = {
+                'load_data': 'O(T*H*W)',
+                'subsample': 'O(T*H*W)',
+                'prepare_datasets': 'O(T*H*W + T*lags*num_sensors)',
+                'train_model': 'O(epochs * batches * (lags*num_sensors*hidden_size + hidden_size*l1 + l1*l2 + l2*output_size))',
+                'evaluate_model': 'O(test_samples * output_size)'
+            }
+            
+            # Complexidade de memoria
+            memory_complexity = {
+                'load_data': f'O({total_elements} * 8 bytes) = O({total_elements * 8 / 1024 / 1024:.2f} MB)',
+                'subsample': f'O({total_elements} * 8 bytes) = O({total_elements * 8 / 1024 / 1024:.2f} MB)',
+                'prepare_datasets': f'O({total_elements} * 8 bytes + T*lags*num_sensors * 4 bytes)',
+                'train_model': 'O(batch_size * (lags*num_sensors + hidden_size + l1 + l2 + output_size) * 4 bytes)',
+                'evaluate_model': 'O(test_samples * output_size * 8 bytes)'
+            }
+            
+            self.complexity_analysis[operation_name] = {
+                'data_shape': data_shape,
+                'total_elements': total_elements,
+                'time_complexity': time_complexity.get(operation_name, 'O(1)'),
+                'memory_complexity': memory_complexity.get(operation_name, 'O(1)'),
+                'estimated_memory_mb': total_elements * 8 / 1024 / 1024
+            }
+            
+            print(f"\n=== ANALISE DE COMPLEXIDADE: {operation_name} ===")
+            print(f"Forma dos dados: {data_shape}")
+            print(f"Total de elementos: {total_elements:,}")
+            print(f"Complexidade de tempo: {time_complexity.get(operation_name, 'O(1)')}")
+            print(f"Complexidade de memoria: {memory_complexity.get(operation_name, 'O(1)')}")
+            print(f"Memoria estimada: {total_elements * 8 / 1024 / 1024:.2f} MB")
+            print("=" * 50)
+    
+    def analyze_model_complexity(self, model_params, operation_name):
+        """
+        Analisa a complexidade do modelo neural
+        
+        Args:
+            model_params: Dicionario com parametros do modelo
+            operation_name: Nome da operacao
+        """
+        hidden_size = model_params.get('hidden_size', 64)
+        hidden_layers = model_params.get('hidden_layers', 1)
+        l1 = model_params.get('l1', 350)
+        l2 = model_params.get('l2', 400)
+        num_sensors = model_params.get('num_sensors', 1)
+        lags = model_params.get('lags', 20)
+        batch_size = model_params.get('batch_size', 128)
+        
+        # Parametros do modelo
+        total_params = (
+            hidden_size * hidden_size * hidden_layers +  # LSTM layers
+            hidden_size * l1 + l1 +  # Linear1
+            l1 * l2 + l2 +  # Linear2  
+            l2 * (num_sensors * lags) + (num_sensors * lags)  # Linear3
+        )
+        
+        # Complexidade por forward pass
+        forward_complexity = (
+            batch_size * lags * num_sensors * hidden_size +  # LSTM
+            batch_size * hidden_size * l1 +  # Linear1
+            batch_size * l1 * l2 +  # Linear2
+            batch_size * l2 * (num_sensors * lags)  # Linear3
+        )
+        
+        # Memoria necessaria
+        memory_per_batch = (
+            batch_size * lags * num_sensors * 4 +  # Input
+            batch_size * hidden_size * hidden_layers * 4 +  # LSTM hidden states
+            batch_size * l1 * 4 +  # Linear1 output
+            batch_size * l2 * 4 +  # Linear2 output
+            batch_size * (num_sensors * lags) * 4  # Final output
+        ) / 1024 / 1024  # Convert to MB
+        
+        self.complexity_analysis[f"{operation_name}_model"] = {
+            'total_parameters': total_params,
+            'forward_complexity': forward_complexity,
+            'memory_per_batch_mb': memory_per_batch,
+            'model_params': model_params
+        }
+        
+        print(f"\n=== COMPLEXIDADE DO MODELO: {operation_name} ===")
+        print(f"Total de parametros: {total_params:,}")
+        print(f"Complexidade forward pass: O({forward_complexity:,})")
+        print(f"Memoria por batch: {memory_per_batch:.2f} MB")
+        print(f"Parametros do modelo: {model_params}")
+        print("=" * 50)
+    
+    def generate_complexity_report(self, save_path):
+        """
+        Gera um relatorio completo de complexidade computacional
+        
+        Args:
+            save_path: Caminho para salvar o relatorio
+        """
+        report = {
+            'operation_times': self.operation_times,
+            'memory_usage': self.memory_usage,
+            'complexity_analysis': self.complexity_analysis,
+            'summary': {
+                'total_execution_time': sum([sum(times) for times in self.operation_times.values()]),
+                'peak_memory_usage': max([max([m['peak_memory_mb'] for m in mem_list]) 
+                                        for mem_list in self.memory_usage.values()]) if self.memory_usage else 0
+            }
+        }
+        
+        # Salva o relatorio
+        report_path = os.path.join(save_path, 'complexity_analysis.json')
+        with open(report_path, 'w') as f:
+            json.dump(report, f, indent=4, default=str)
+        
+        print(f"\n=== RELATORIO DE COMPLEXIDADE SALVO EM: {report_path} ===")
+        
+        # Imprime resumo
+        print(f"Tempo total de execucao: {report['summary']['total_execution_time']:.4f} segundos")
+        print(f"Pico de uso de memoria: {report['summary']['peak_memory_usage']:.2f} MB")
+        
+        return report
+
+# Instancia global do analisador
+complexity_analyzer = ComplexityAnalyzer()
+
+# =============================================================================
+# FUNCOES DE MONITORAMENTO DE PERFORMANCE
+# =============================================================================
+
+def monitor_performance(func):
+    """
+    Decorator para monitorar performance de funcoes
+    """
+    def wrapper(*args, **kwargs):
+        func_name = func.__name__
+        
+        # Inicia monitoramento
+        complexity_analyzer.start_timer()
+        complexity_analyzer.start_memory_tracking()
+        
+        # Executa a funcao
+        result = func(*args, **kwargs)
+        
+        # Finaliza monitoramento
+        complexity_analyzer.end_timer(func_name)
+        complexity_analyzer.end_memory_tracking(func_name)
+        
+        return result
+    return wrapper
+
+def get_memory_usage():
+    """Retorna o uso atual de memoria em MB"""
+    process = psutil.Process()
+    return process.memory_info().rss / 1024 / 1024
+
+def print_memory_status(operation_name):
+    """Imprime o status atual de memoria"""
+    memory_mb = get_memory_usage()
+    print(f"Memoria atual em {operation_name}: {memory_mb:.2f} MB")
+
+# =============================================================================
+# CODIGO ORIGINAL COM MONITORAMENTO INTEGRADO
+# =============================================================================
+
 # Caminho do arquivo .npy
 # npy_file_path = r"/home/romulo/Downloads/prmsl_data.npy"
 # npy_file_path = r"/home/romulo/Downloads/qmax.2m.1836_data_mavg.npy"
-npy_file_path = r"/home/romulo/migoogledrive/shred-jan/pyshred/Data/16_roll7_Re1_Wi3.5_beta0.6666/fields.npy"
+npy_file_path = r"/home/romulo/Documentos/lpips-env/data/fields.npy"
 
 # save_path = r'./results/csshred/oldroyd_test/csshred'
-save_path = r"/home/romulo/Documentos/lpips-env/results/csshred/oldroyd_paper"
+# save_path = r"/home/romulo/Documentos/lpips-env/results/csshred/oldroyd_paper"
+save_path = r"/home/romulo/Documentos/lpips-env/results/shred/complexity_analysis"
+
+
 # save_path = r"/home/romulo/Documentos/lpips-env/results/shred/oldroyd"
 
 # Verifica a disponibilidade de GPU
@@ -25,6 +265,7 @@ device = "cuda" if torch.cuda.is_available() else "cpu"
 print(f"Using device: {device}")
 
 # Função para carregar dados de um arquivo .npy
+@monitor_performance
 def load_data(npy_file_path, time_slice):
     data_array = data = np.load(
     npy_file_path,allow_pickle=True
@@ -33,11 +274,16 @@ def load_data(npy_file_path, time_slice):
     data_array = data_array[:,:,time_slice:]
     data_array = np.transpose(data_array, (2,0,1))
     print("Loaded data dimensions:", data_array.shape)
+    
+    # Analisa complexidade dos dados carregados
+    complexity_analyzer.analyze_data_complexity(data_array.shape, "load_data")
+    
     return data_array
 
 
 
 # Visualização dos dados 2D ou 3D
+@monitor_performance
 def visualize_data(matrix, subsampled):
     # Plot para o último slice temporal da matriz
     plt.imshow(matrix[-1, :, :], cmap="viridis", origin="lower")
@@ -151,6 +397,7 @@ def visualize_data(matrix, subsampled):
 
 
 
+@monitor_performance
 def subsample(snapshot, num_cols_subsample, num_snapshots_subsample):
     np.random.seed(1001)
 
@@ -205,10 +452,15 @@ def subsample(snapshot, num_cols_subsample, num_snapshots_subsample):
 
     print("Forma do snapshot após subamostragem:", snapshot_subsampled.shape)
     print(f"Porcentagem de dados mantidos: {100 * (1 - np.sum(mask)/mask.size):.2f}%")
+    
+    # Analisa complexidade da subamostragem
+    complexity_analyzer.analyze_data_complexity(snapshot_subsampled.shape, "subsample")
+    
     return snapshot_subsampled
 
 
 # Configuração dos sensores
+@monitor_performance
 def plot_dynamics_at_sensors(
     trace_A, num_sensors, locations="c", show_plot=False, save_plot=True, save_path=save_path, file_name="plot_din.pdf", seed=101,
     auto_close_time=5
@@ -299,6 +551,7 @@ def plot_dynamics_at_sensors(
 
 
 # Preparação dos dados para treinamento e validação
+@monitor_performance
 def prepare_datasets(trace_A, trace_A_ori, num_sensors, sensor_locations, lags):
     trace_A_ori = np.transpose(trace_A_ori, (1, 2, 0))
     num_sensors = num_sensors
@@ -387,10 +640,14 @@ def prepare_datasets(trace_A, trace_A_ori, num_sensors, sensor_locations, lags):
     valid_dataset = TimeSeriesDataset(valid_data_in, valid_data_out)
     test_dataset_test = TimeSeriesDataset(test_data_in_test, test_data_out_test)
 
+    # Analisa complexidade da preparacao dos dados
+    complexity_analyzer.analyze_data_complexity(trace_A.shape, "prepare_datasets")
+
     return train_dataset, valid_dataset, test_dataset_test, sc, load_X_shape_1
 
 
 # Treinamento e validação do modelo
+@monitor_performance
 def train_and_validate_model(
     type_model,
     model,
@@ -437,6 +694,7 @@ def train_and_validate_model(
         return validation_errors
 
 
+@monitor_performance
 def evaluate_model(model, test_dataset, sc, json_save_path=save_path +'/error_results.json'):
     """
     Avalia o modelo calculando o erro normalizado e o SSIM entre as previsões e o ground truth.
@@ -522,8 +780,13 @@ verbose = True
 patience = 10
 step_epoch = 50
 # Escolha do modelo CS-SHRED/SHRED
+# model_type = "CS-SHRED"
 model_type = "SHRED"
-# model_type = "SHRED"
+
+# Inicia monitoramento global
+complexity_analyzer.start_timer()
+complexity_analyzer.start_memory_tracking()
+
 # Carregamento dos dados
 matrix = load_data(npy_file_path, time_slice=0)
 
@@ -619,6 +882,11 @@ visualize_data(matrix, snapshot)
 # num_sensors=1
 # num_epochs=1497
 
+# dropout= 0 #0.48076455902263865
+# l1_tol=0.0000355838144226626
+# opt_tol=0.000025245863982583535
+# ls_tol=0.0005154367482338618
+
 # hidden_size=256
 # hidden_layers=2
 # batch_size=128
@@ -680,6 +948,18 @@ train_dataset, valid_dataset, test_dataset, sc, load_X_shape_1 = prepare_dataset
     snapshot, matrix, num_sensors, sensor_locations, lags
 )
 
+# Analisa complexidade do modelo antes do treinamento
+model_params = {
+    'hidden_size': hidden_size,
+    'hidden_layers': hidden_layers,
+    'batch_size': batch_size,
+    'l1': l1,
+    'l2': l2,
+    'num_sensors': num_sensors,
+    'lags': lags
+}
+complexity_analyzer.analyze_model_complexity(model_params, model_type)
+
 
 # Treinamento e validação do modelo
 if model_type == "CS-SHRED":
@@ -698,7 +978,7 @@ if model_type == "CS-SHRED":
         n_sparsity_threshold=num_snapshots_subsample,
         verbosity=0,
         show_plot=False,
-).to(device)
+    ).to(device)
     train_error, validation_errors = train_and_validate_model(
         model_type,
         model,
@@ -751,7 +1031,12 @@ end_time = time.time()
 total_time = (end_time - begin_time)/60
 print(f"Tempo de execução: {total_time:.2f} minutos")   
 
+# Finaliza monitoramento global
+complexity_analyzer.end_timer("execucao_total")
+complexity_analyzer.end_memory_tracking("execucao_total")
 
+# Gera relatorio de complexidade
+complexity_report = complexity_analyzer.generate_complexity_report(save_path)
 
 # Definição dos parâmetros do modelo
 model_params = {
