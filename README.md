@@ -11,11 +11,12 @@ This repository provides a minimal example to run the CS-SHRED pipeline on the T
 
 2. Download the TURB-ROT dataset:
    - The file `data/turb_vy_combined.npy` is too large to be included in the repository.
-   - Download it from: [Google Drive - turb_vy_combined.npy]([https://drive.google.com/file/d/1CKhvfhdQpOFiXHGfu-8FOTPzSgghQmlB/view?usp=drive_link])
+   - Download it from: [Google Drive – turb_vy_combined.npy](https://drive.google.com/file/d/1CKhvfhdQpOFiXHGfu-8FOTPzSgghQmlB/view?usp=drive_link)
    - Place the downloaded file in:
      ```
      data/turb_vy_combined.npy
      ```
+
 
 3. Run the pipeline:
    ```bash
