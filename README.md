@@ -1,4 +1,4 @@
-# TURB-ROT CS-SHRED Minimal Example
+# CS-SHRED: TURB-ROT
 
 This repository provides a minimal example to run the CS-SHRED pipeline on the TURB-ROT dataset.
 
