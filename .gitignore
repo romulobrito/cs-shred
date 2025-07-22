@@ -5,6 +5,7 @@ results/shred/
 results/*/
 Data/
 data/
+data/turb_vy_combined.npy
 
 # Arquivos de dados
 *.npy

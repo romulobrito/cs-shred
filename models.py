@@ -32,18 +32,8 @@ def recover_signal(x, l1_precision, opt_tol, ls_tol, n_sparsity_threshold, verbo
         _type_: _description_
     """
 
-    # x_np = x.cpu().numpy() 
-    # n_sparsity_threshold = 1. - n_sparsity_threshold
-
-    # n_sparse = np.where(x_np == 0)[0]
-    # size = x_np.size
-    # percentage = len(n_sparse) / size
-        
-    # if percentage > n_sparsity_threshold:
-    #     return torch.tensor(x_np)
-
+    
     x_np = x.cpu().numpy() 
-    # n_sparsity_threshold=0.8
 
     n_sparse = np.where(x_np == 0)[0]
     size = x_np.size
@@ -88,36 +78,6 @@ def recover_signal(x, l1_precision, opt_tol, ls_tol, n_sparsity_threshold, verbo
             return torch.tensor(x_np)  # Return original signal if recovery fails
         
 
-# def recover_signal(x, l1_precision, opt_tol, ls_tol, verbosity):
-#     x_np = x.cpu().numpy()
-
-
-#     iava = np.nonzero(x_np > 0)[0]
-#     Rop = pylops.Restriction(x.numel(), iava=iava, dtype="float64")
-#     y = Rop * x_np
-#     RopH = Rop.H
-
-#     Fop = pylops.signalprocessing.FFT(x.numel(), dtype="complex128")
-#     Op = Rop * Fop.H
-#     Op_adj = Fop * RopH
-
-#     x_recovered, _, _ = spgl1(
-#         Op,
-#         y,
-#         verbosity=verbosity,
-#         iter_lim=4000,
-#         opt_tol=opt_tol,
-#         bp_tol=l1_precision,
-#         ls_tol=ls_tol,
-#         show=False,
-#     )
-
-#     recovered_signal_time = Fop.H * x_recovered
-#     recovered_signal_time = recovered_signal_time.reshape(x.shape)
-#     recovered_signal_tensor = torch.tensor(recovered_signal_time)
-
-#     return recovered_signal_tensor
-
 
 def recover_signal_per_column(x, l1_precision, opt_tol, ls_tol, n_sparsity_threshold,verbosity):
     recovered_signals = []
@@ -126,48 +86,6 @@ def recover_signal_per_column(x, l1_precision, opt_tol, ls_tol, n_sparsity_thres
             column_data = x[:, i, j] # if len(x.shape) > 2 else x[:, i]
             recovered_signal = recover_signal(column_data, l1_precision, opt_tol, ls_tol, n_sparsity_threshold,verbosity)
             recovered_signals.append(recovered_signal)
-    # print('************************recovered_signals***********************************')        
-    # print(recovered_signals[0], recovered_signals[1], recovered_signals[2])
-    # plt.plot(
-    #     x[:, 0, 0].detach().cpu().numpy(),
-    #     label=f"Subsampled Signal (Column {0}, Channel {0})",
-    #     color="red",
-    #     linestyle='--'
-    
-    # )       
-    # plt.plot(
-    #     recovered_signals[0],
-    #     label=f"Recovered Signal (Column {1})",
-    #     color="green",
-    #     linestyle='dashed'
-    # )
-    # plt.xlabel("Time")
-    # plt.ylabel("Amplitude")
-    # plt.legend()
-    # plt.grid(True)
-    # plt.show()
-
-    # plt.plot(
-    #     recovered_signals[1],
-    #     label=f"Recovered Signal (Column {2})",
-    #     color="green",
-    # )
-    # plt.xlabel("Time")
-    # plt.ylabel("Amplitude")
-    # plt.legend()
-    # plt.grid(True)
-    # plt.show()
-
-    # plt.plot(
-    #     recovered_signals[2],
-    #     label=f"Recovered Signal (Column {3})",
-    #     color="green",
-    # )
-    # plt.xlabel("Time")
-    # plt.ylabel("Amplitude")
-    # plt.legend()
-    # plt.grid(True)
-    # plt.show()
 
     return recovered_signals
 
@@ -202,7 +120,7 @@ class CSSHRED(nn.Module):
         self.linear3 = nn.Linear(l2, output_size)
         self.dropout = nn.Dropout(dropout)
 
-        # Aplicando inicialização Xavier para as camadas lineares
+        # Xavier initialization for linear layers
         nn.init.xavier_uniform_(self.linear1.weight)
         nn.init.xavier_uniform_(self.linear2.weight)
         nn.init.xavier_uniform_(self.linear3.weight)
@@ -222,10 +140,6 @@ class CSSHRED(nn.Module):
             x, self.l1_tol, self.opt_tol, self.ls_tol, self.n_sparsity_threshold, self.verbosity_spgl1
         )
         combined_recovered_signal = torch.stack(recovered_signals_per_column, dim=1)
-
-        # print("****************combined_recovered_signal********************")
-        # print(combined_recovered_signal)
-
         combined_recovered_signal_expanded = combined_recovered_signal.unsqueeze(-1)
         combined_recovered_signal_expanded = combined_recovered_signal_expanded.squeeze(
             -1
@@ -235,34 +149,10 @@ class CSSHRED(nn.Module):
             if len(combined_recovered_signal_expanded.shape) > 2
             else combined_recovered_signal_expanded.permute(0, 1)
         )
-        # print("****************combined_recovered_signal_expanded****************")
-        # print(combined_recovered_signal_expanded)
         combined_recovered_signal_expanded = combined_recovered_signal_expanded.float()
         if self.show_plot:
             num_columns = x.size(1)
             num_channels = x.size(2)
-            # plt.figure(figsize=(15*num_channels, 5*num_columns))
-            # for i in range(num_columns):
-            #     for j in range(num_channels):
-            #         plt.subplot(num_columns, num_channels, i*num_channels + j + 1)
-            #         plt.plot(
-            #             x[:, i, j].detach().cpu().numpy(),
-            #             label=f"Subsampled Signal (Column {i+1}, Channel {j+1})",
-            #             color="red",
-            #         )
-            #         plt.plot(
-            #             recovered_signals_per_column[i],
-            #             label=f"Recovered Signal (Column {i+1})",
-            #             color="green",
-            #         )
-            #     plt.xlabel("Time")
-            #     plt.ylabel("Amplitude")
-            #     plt.legend()
-            #     plt.grid(True)
-            #     plt.tight_layout()
-            #     plt.show()
-            # i=1
-            # if i==1 or i%50==0:
             plt.plot(
                 x[:, 0, 0].detach().cpu().numpy(),
                 label=f"Subsampled Signal (Column {0}, Channel {0})",
@@ -292,7 +182,7 @@ class CSSHRED(nn.Module):
             
             plt.xlabel("Time")
             plt.ylabel("Amplitude")
-            # plt.legend()
+            plt.legend()
             plt.grid(False)
             plt.show()
 
@@ -386,25 +276,6 @@ class SHRED(torch.nn.Module):
         self.hidden_size = hidden_size
 
     def forward(self, x):
-
-        # plt.plot(
-        #         x[:, 0, 0].detach().cpu().numpy(),
-        #         label=f"Subsampled Signal (Column {0}, Channel {0})",
-        #         color="red",
-            
-        #     )
-        #     # plt.plot(
-        #     #     recovered_signals_per_column[0],
-        #     #     label=f"Recovered Signal (Column {1})",
-        #     #     color="green",
-        #     #     linestyle='--'
-        #     # )
-    
-        # plt.xlabel("Time")
-        # plt.ylabel("Amplitude")
-        # plt.legend()
-        # plt.grid(True)
-        # plt.show()
 
         h_0 = torch.zeros(
             (self.hidden_layers, x.size(0), self.hidden_size), dtype=torch.float
@@ -502,27 +373,7 @@ def fit(
             if verbose == True:
                 print("Training epoch " + str(epoch))
                 print("Error " + str(val_error_list[-1]))
-                # Plotagem a cada x épocas
-                # if epoch % 50 == 0 or epoch == 1:
                 
-                    # plt.figure(figsize=(10, 5))
-                    # plt.plot(
-                    #     valid_dataset.X[:, 0].detach().cpu().numpy(),
-                    #     label="Subsampled Signal",
-                    #     color="red",
-                    # )
-                    # plt.plot(
-                    #     val_outputs[:, 0].detach().cpu().numpy(),
-                    #     label="Recovered Signal",
-                    #     color="green",
-                    #     linestyle='--'
-                    # )
-                    # plt.xlabel("Time")
-                    # plt.ylabel("Amplitude")
-                    # plt.legend()
-                    # plt.grid(True)
-                    # plt.title(f"Epoch {epoch}")
-                    # plt.show()
 
             if val_error == torch.min(torch.tensor(val_error_list)):
                 patience_counter = 0
@@ -601,26 +452,26 @@ def fit_csshred_model(
             lossL1 = criterion2(outputs, torch.zeros_like(outputs))
             snr = calculate_snr(data[1], outputs)
 
-            # Regularização L2
+            # L2 regularization
             l2_reg = 0.0
             for param in model.parameters():
                 l2_reg += torch.norm(param, p=2)
 
-            # Ajustando a perda para incentivar a maximização do SNR
+            # Adjusting the loss to incentivize the maximization of the SNR
             if snr > 0:
                 loss = (
                     torch.clamp(1 / (snr + 1e-8), max=100.0) * lambdaSNR
                     + lambL2 * lossMSE
                     + lambL1 * lossL1
                     + weight_decay * l2_reg
-                )  # Quanto maior o SNR, menor será a perda
+                )  # The higher the SNR, the lower the loss
             else:
                 loss = (
                     - snr * lambdaSNR
                     + lambL2 * lossMSE
                     + lambL1 * lossL1
                     + weight_decay * l2_reg
-                )  # Inversa do SNR: quanto menor o SNR, maior será a perda
+                )  # Inverse of the SNR: the lower the SNR, the higher the loss
 
             loss.backward()
             optimizer.step()
@@ -629,16 +480,16 @@ def fit_csshred_model(
         avg_train_loss = sum(train_losses) / len(train_losses)
         train_error_list.append(avg_train_loss)
 
-        # Calculando o erro de validação após o término da época
+        # Calculating the validation error after the end of the epoch
         if epoch % step_epoch == 0 or epoch == 1:
             model.eval()
             with torch.no_grad():
                 val_outputs = model(valid_dataset.X)
 
-                # Calculando o SNR da validação
+                # Calculating the validation SNR
                 val_snr = calculate_snr(valid_dataset.Y, val_outputs)
 
-                # Ajustando a perda de validação para incentivar a maximização do SNR
+                # Adjusting the validation loss to incentivize the maximization of the SNR
                 if val_snr > 0:
                     val_loss = (
                         torch.clamp(1 / (val_snr + 1e-8), max=100.0)  * lambdaSNR + lambL2 * lossMSE + lambL1 * lossL1
@@ -655,25 +506,6 @@ def fit_csshred_model(
                 print("Training Error: " + str(avg_train_loss))
                 print("Validation Error:" + str(val_loss.item()))
                 print("SNR:" + str(snr.item()))
-
-                # plt.figure(figsize=(10, 5))
-                # plt.plot(
-                #     valid_dataset.X[:, 0].detach().cpu().numpy(),
-                #     label="Subsampled Signal",
-                #     color="red",
-                # )
-                # plt.plot(
-                #     val_outputs[:, 0].detach().cpu().numpy(),
-                #     label="Recovered Signal",
-                #     color="green",
-                #     linestyle='--'
-                # )
-                # plt.xlabel("Time")
-                # plt.ylabel("Amplitude")
-                # plt.legend()
-                # plt.grid(True)
-                # plt.title(f"Epoch {epoch}")
-                # plt.show()
 
             if len(val_error_list) > 0:
                 if val_loss == torch.min(torch.tensor(val_error_list)):
