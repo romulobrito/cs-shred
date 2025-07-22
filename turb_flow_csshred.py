@@ -26,6 +26,22 @@ print(f"Using device: {device}")
 
 # Function to load data from a .npy file
 def load_data(npy_file_path, time_slice):
+    """
+    Load a 3D spatiotemporal array from a .npy file, truncate it to a given number of time steps,
+    and transpose it to (time, x, y) format.
+
+    Parameters
+    ----------
+    npy_file_path : str
+        Path to the .npy file containing the data.
+    time_slice : int
+        Number of time steps to keep (truncate along the last axis).
+
+    Returns
+    -------
+    data_array : np.ndarray
+        Array of shape (time, x, y) with the loaded and transposed data.
+    """
     data_array = np.load(npy_file_path)
     data_array = data_array[:, :, :time_slice]
     data_array = np.transpose(data_array, (2, 0, 1))
@@ -35,6 +51,17 @@ def load_data(npy_file_path, time_slice):
 
 # Visualization of 2D or 3D data
 def visualize_data(matrix, subsampled):
+    """
+    Visualize the last temporal slice of the original and subsampled data arrays,
+    saving the plots as PNG files.
+
+    Parameters
+    ----------
+    matrix : np.ndarray
+        Original data array of shape (time, x, y).
+    subsampled : np.ndarray
+        Subsampled data array of shape (x, y, time).
+    """
     # Plot for the last temporal slice of the matrix
     plt.imshow(matrix[-1, :, :], cmap="viridis", origin="lower")
     # plt.colorbar()
@@ -55,6 +82,23 @@ def visualize_data(matrix, subsampled):
 
 
 def subsample(snapshot, num_cols_subsample, num_snapshots_subsample):
+    """
+    Randomly subsample columns and time snapshots from a 3D array, setting selected entries to zero.
+
+    Parameters
+    ----------
+    snapshot : np.ndarray
+        Input array of shape (time, x, y).
+    num_cols_subsample : int
+        Number of columns to subsample (set to zero).
+    num_snapshots_subsample : int
+        Number of time snapshots to subsample (set to zero).
+
+    Returns
+    -------
+    snapshot_subsampled : np.ndarray
+        Subsampled array with selected entries set to zero.
+    """
     np.random.seed(1001)
 
     print("snapshot", snapshot.shape)
@@ -123,6 +167,39 @@ def plot_dynamics_at_sensors(
     seed=101,
     auto_close_time=5,
 ):
+    """
+    Select sensor locations and plot their temporal dynamics and spatial positions.
+
+    Parameters
+    ----------
+    trace_A : np.ndarray
+        3D array (x, y, time) representing the field.
+    num_sensors : int
+        Number of sensors to select.
+    locations : str
+        Sensor placement strategy ('a', 'b', or 'c').
+    show_plot : bool
+        Whether to display the plot interactively.
+    save_plot : bool
+        Whether to save the plot to disk.
+    save_path : str
+        Directory to save the plot.
+    file_name : str
+        Name of the plot file.
+    seed : int
+        Random seed for reproducibility.
+    auto_close_time : int
+        Time to keep the plot open if shown interactively.
+
+    Returns
+    -------
+    sensor_locations : np.ndarray
+        Indices of selected sensor locations.
+    sensor_positions_x : np.ndarray
+        X coordinates of sensors (normalized).
+    sensor_positions_y : np.ndarray
+        Y coordinates of sensors (normalized).
+    """
     np.random.seed(seed)
 
     dim_x, dim_y, dim_t = trace_A.shape
@@ -210,6 +287,35 @@ def plot_dynamics_at_sensors(
 
 # Preparation of the data for training and validation
 def prepare_datasets(trace_A, trace_A_ori, num_sensors, sensor_locations, lags):
+    """
+    Prepare PyTorch datasets for training, validation, and testing from the original and subsampled data.
+
+    Parameters
+    ----------
+    trace_A : np.ndarray
+        Subsampled data array (x, y, time).
+    trace_A_ori : np.ndarray
+        Original data array (x, y, time).
+    num_sensors : int
+        Number of sensors.
+    sensor_locations : np.ndarray
+        Indices of sensor locations.
+    lags : int
+        Number of time lags for input sequences.
+
+    Returns
+    -------
+    train_dataset : TimeSeriesDataset
+        Training dataset.
+    valid_dataset : TimeSeriesDataset
+        Validation dataset.
+    test_dataset_test : TimeSeriesDataset
+        Test dataset.
+    sc : MinMaxScaler
+        Fitted scaler for normalization.
+    load_X_shape_1 : int
+        Number of spatial points (flattened).
+    """
     trace_A_ori = np.transpose(trace_A_ori, (1, 2, 0))
     num_sensors = num_sensors
 
@@ -310,6 +416,45 @@ def train_and_validate_model(
     verbose,
     patience,
 ):
+    """
+    Train and validate a CS-SHRED or SHRED model.
+
+    Parameters
+    ----------
+    type_model : str
+        Model type ('CS-SHRED' or 'SHRED').
+    model : torch.nn.Module
+        Model instance.
+    train_dataset : Dataset
+        Training dataset.
+    valid_dataset : Dataset
+        Validation dataset.
+    num_epochs : int
+        Number of training epochs.
+    batch_size : int
+        Batch size.
+    lr : float
+        Learning rate.
+    lambL2 : float
+        L2 regularization coefficient.
+    lambL1 : float
+        L1 regularization coefficient.
+    lambdaSNR : float
+        SNR regularization coefficient.
+    step_epoch : int
+        Epoch interval for validation.
+    verbose : bool
+        Verbosity flag.
+    patience : int
+        Early stopping patience.
+
+    Returns
+    -------
+    train_error : np.ndarray or None
+        Training error history (CS-SHRED only).
+    validation_errors : np.ndarray
+        Validation error history.
+    """
     if type_model == "CS-SHRED":
         train_error, validation_errors = models.fit_csshred_model(
             model,
@@ -345,13 +490,28 @@ def evaluate_model(
     model, test_dataset, sc, json_save_path=save_path + "/error_results.json"
 ):
     """
-    Evaluate the model calculating the normalized error and the SSIM between the predictions and the ground truth.
+    Evaluate the model on the test dataset, computing normalized error and SSIM,
+    and save results to a JSON file.
 
-    :param model: The trained model.
-    :param test_dataset: The test dataset.
-    :param sc: The scaler used to normalize the data.
-    :param json_save_path: Path to save the results in a JSON file.
-    :return: Reconstructed data, ground truth data and the normalized error.
+    Parameters
+    ----------
+    model : torch.nn.Module
+        Trained model.
+    test_dataset : Dataset
+        Test dataset.
+    sc : MinMaxScaler
+        Scaler used for normalization.
+    json_save_path : str
+        Path to save the results JSON.
+
+    Returns
+    -------
+    test_recons : np.ndarray
+        Model reconstructions (denormalized).
+    test_ground_truth : np.ndarray
+        Ground truth data (denormalized).
+    error_norm : float
+        Normalized error.
     """
     # Perform the prediction with the model and transform the data back to the original format
     test_recons = sc.inverse_transform(model(test_dataset.X).detach().cpu().numpy())
@@ -382,10 +542,10 @@ def evaluate_model(
     print("Mean SSIM:", mean_ssim)
     print("Normalized Error:", error_norm)
 
-    # Cria o diretório se não existir
+    # Create the directory if it does not exist
     os.makedirs(os.path.dirname(json_save_path), exist_ok=True)
 
-    # Salva os resultados em um arquivo JSON
+    # Save the results in a JSON file
     results = {
         "Normalized_Error": float(error_norm),
         "SSIM": {"overall": float(mean_ssim), "snapshots": ssim_scores},
@@ -398,12 +558,18 @@ def evaluate_model(
 
 def add_model_info_to_json(json_file_path, model_type, model_params, config_params):
     """
-    Add model and configuration information to an existing JSON file or create a new one.
+    Add model and configuration information to a JSON file, creating it if necessary.
 
-    :param json_file_path: Path to the JSON file.
-    :param model_type: Type of model (CS-SHRED or SHRED).
-    :param model_params: Dictionary with the model parameters.
-    :param config_params: Dictionary with the configuration parameters.
+    Parameters
+    ----------
+    json_file_path : str
+        Path to the JSON file.
+    model_type : str
+        Model type ('CS-SHRED' or 'SHRED').
+    model_params : dict
+        Model hyperparameters.
+    config_params : dict
+        Experiment configuration parameters.
     """
     # Check if the JSON file already exists
     if os.path.exists(json_file_path):
@@ -669,11 +835,11 @@ else:
         model,
         directory=save_path,
     ):
-        # Verifica se o diretório 'results' existe, senão cria
+        # Check if the 'results' directory exists, if not create it
         if not os.path.exists(directory):
             os.makedirs(directory)
 
-        # Salva cada conjunto de dados em um arquivo .npy separado
+        # Save each dataset in a separate .npy file
         np.save(os.path.join(directory, "test_recons.npy"), test_recons)
         np.save(os.path.join(directory, "test_ground_truth.npy"), test_ground_truth)
         np.save(os.path.join(directory, "matrix.npy"), matrix)
