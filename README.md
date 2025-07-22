@@ -61,7 +61,18 @@ where:
 ### CS-SHRED Model Equation
 
 $$
-\mathcal{H}(\{y_{sub}(i)\}_{i=t_{current}-l}^{t_{current}}) = \mathcal{F}\left(\mathcal{G}\left(\underset{\{\xi_i\}}{\arg\min}\; \|\Theta \{\xi_i\} - \{y_{sub}(i)\}\|_2^2 + \lambda \|\{\xi_i\}\|_1 ; W_{RN}\right); W_{SD}\right)
+\mathcal{H}\left(\{ y_{\text{sub}}(i) \}_{i = t_{\text{current}} - l}^{t_{\text{current}}} \right) =
+\mathcal{F}\left(
+  \mathcal{G}\left(
+    \underset{ \{ \xi_i \} }{ \arg\min }
+    \left\|
+      \Theta \{ \xi_i \} - \{ y_{\text{sub}}(i) \}
+    \right\|_2^2
+    + \lambda \left\| \{ \xi_i \} \right\|_1
+    , W_{\text{RN}}
+  \right)
+  , W_{\text{SD}}
+\right)
 $$
 
 where:
