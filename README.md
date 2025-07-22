@@ -60,26 +60,6 @@ where:
 
 ### CS-SHRED Model Equation
 
-$$
-\mathcal{H}\!\bigl(\{\,y_{\text{sub}}(i)\,\}_{i = t_{\text{current}}-l}^{t_{\text{current}}}\bigr)
-\;=\;
-\mathcal{F}\!\Bigl(
-    \mathcal{G}\!\bigl(
-        \underset{\{\xi_i\}}{\arg\min}\;
-        \bigl\lVert\,
-            \Theta\,\{\xi_i\}
-            -\,
-            \{\bar y_{\text{sub}}(i)\}
-        \bigr\rVert_2^{\,2}
-        +\;
-        \lambda\,\lVert\{\xi_i\}\rVert_1
-        ;\;
-        W_{\mathrm{RN}}
-    \bigr)
-    ;\;
-    W_{\mathrm{SD}}
-\Bigr)
-$$
 
 ![CS-SHRED Model Equation as Image](figs/arch-design.png)
 
