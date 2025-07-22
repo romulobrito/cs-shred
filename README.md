@@ -15,83 +15,88 @@ Many scientific and engineering fields require the reconstruction of complex spa
 - Provide reliable results even when traditional methods fail due to data loss or corruption.
 - Support applications in environmental monitoring, climate science, engineering, and medical imaging.
 
+## Simulating Real-World Corrupted or Missing Data
+
+A key step in the CS-SHRED pipeline is the simulation of corrupted or missing data, which mimics real-world scenarios where sensor failures, noise, or transmission losses occur. This is mathematically achieved by applying a restriction operator to the original spatiotemporal field, masking (zeroing) selected spatial and temporal locations to emulate missing or corrupted measurements.
+
+**Mathematical formulation (Restriction/Subsampling Operator):**
+
+$$
+x_{sub}(x, y, t) =
+\begin{cases}
+0 & \text{if } y \in Y_{sub} \text{ and } t \in T_{sub} \\
+x(x, y, t) & \text{otherwise}
+\end{cases}
+$$
+
+where:
+- $x_{sub}(x, y, t)$ is the subsampled (corrupted) field,
+- $x(x, y, t)$ is the original spatiotemporal field,
+- $Y_{sub}$ is the set of spatial locations (columns) selected for subsampling,
+- $T_{sub}$ is the set of time snapshots selected for subsampling.
+
+This mathematical subsampling step is essential for evaluating the robustness and practical applicability of CS-SHRED in real-world environments where data is often incomplete or corrupted.
+
 ## CS-SHRED Architecture and Mathematical Formulation
 
 CS-SHRED extends the SHRED model by integrating a compressed sensing recovery step before the LSTM and decoder. The pipeline consists of:
 
 1. **Data Subsampling:** Randomly remove a percentage of spatial columns and time snapshots to simulate missing or corrupted sensor data.
-2. **Compressed Sensing Recovery:** For each batch, solve a convex optimization problem to recover missing values. This uses a restriction operator $R_{op}$ (selects observed entries) and the Hermitian of the Fourier transform $F_{op}^H$ (for sparse representation). The recovery solves:
+2. **Compressed Sensing Recovery:** For each batch, solve a convex optimization problem to recover missing values. This uses a restriction operator and the Hermitian of the Fourier transform. The recovery step is:
 
 $$
-\underset{\{\xi_i\}}{\text{argmin}}\; \|\Theta \{\xi_i\} - \{\bar{\mathbf{y}}_{sub}(i)\}\|_2^2 + \lambda \|\{\xi_i\}\|_1
+\arg\min_{\{\xi_i\}} \| \Theta \{\xi_i\} - \{y_{sub}(i)\} \|_2^2 + \lambda \| \{\xi_i\} \|_1
 $$
 
-where $\Theta = R_{op} F_{op}^H$ and $\{\bar{\mathbf{y}}_{sub}(i)\}$ are the observed (nonzero) sensor values.
+where:
+- $\Theta$ is the composition of the restriction operator and the Hermitian of the Fourier transform,
+- $\{y_{sub}(i)\}$ are the observed (nonzero) sensor values,
+- $\lambda$ is the sparsity regularization parameter.
 
 3. **LSTM Sequence Modeling:** The recovered time series from sensors is processed by LSTM layers to capture temporal dependencies.
 4. **Shallow Decoder:** The LSTM output is mapped to the high-dimensional state space using a shallow fully connected network.
 5. **Adaptive Loss Function:** Training uses a loss that combines mean squared error, mean absolute error, and a signal-to-noise ratio (SNR) penalty, with regularization to promote robustness and sparsity.
 
+
 ### CS-SHRED Model Equation
 
-The overall CS-SHRED architecture can be described by the following equation:
-
 $$
-\mathcal{H}(\{\mathbf{y}_{sub}(i)\}_{i=t_{current}-l}^{t_{current}}) = \mathcal{F}\left(\mathcal{G}\left(\underset{\{\xi_i\}}{\text{argmin}}\; \|\Theta \{\xi_i\} - \{\bar{\mathbf{y}}_{sub}(i)\}\|_2^2 + \lambda \|\{\xi_i\}\|_1 ; W_{RN}\right); W_{SD}\right)
+\mathcal{H}(\{y_{sub}(i)\}_{i=t_{current}-l}^{t_{current}}) = \mathcal{F}\left(\mathcal{G}\left(\underset{\{\xi_i\}}{\arg\min}\; \|\Theta \{\xi_i\} - \{y_{sub}(i)\}\|_2^2 + \lambda \|\{\xi_i\}\|_1 ; W_{RN}\right); W_{SD}\right)
 $$
 
 where:
 - $\mathcal{H}$ is the full CS-SHRED mapping from subsampled sensor data to reconstructed state.
 - $\mathcal{F}$ is the shallow decoder (fully connected network) with weights $W_{SD}$.
 - $\mathcal{G}$ is the LSTM network with weights $W_{RN}$.
-- The inner minimization is the compressed sensing recovery step, as described above.
-- $\{\mathbf{y}_{sub}(i)\}$ are the subsampled sensor measurements over the lag window.
+- The inner minimization is the compressed sensing recovery step.
+- $\{y_{sub}(i)\}$ are the subsampled sensor measurements over the lag window.
+- $\Theta$ is the composition of the restriction operator and the Hermitian of the Fourier transform.
+- $\lambda$ is the sparsity regularization parameter.
 
 This equation formalizes the end-to-end process: from corrupted sensor data, through compressed sensing recovery, temporal modeling, and final high-dimensional reconstruction.
 
 ### Adaptive Loss Function
 
-The loss function used in CS-SHRED is:
-
 $$
 \mathcal{L} =
 \begin{cases}
-    \lambda_{snr} \cdot SNR^{-1} + \lambda_{L2} \cdot \mathcal{L}_{MSE} + \lambda_{L1} \cdot \mathcal{L}_{MAE} + \mathcal{R}_{\ell_2}, & SNR > 0 \\
-    -\lambda_{snr} \cdot SNR + \lambda_{L2} \cdot \mathcal{L}_{MSE} + \lambda_{L1} \cdot \mathcal{L}_{MAE} + \mathcal{R}_{\ell_2}, & SNR \leq 0
+    \lambda_{snr} \cdot SNR^{-1} + \lambda_{L2} \cdot MSE + \lambda_{L1} \cdot MAE + R_{l2}, & SNR > 0 \\
+    -\lambda_{snr} \cdot SNR + \lambda_{L2} \cdot MSE + \lambda_{L1} \cdot MAE + R_{l2}, & SNR \leq 0
 \end{cases}
 $$
 
-where $\mathcal{L}_{MSE}$ is the mean squared error, $\mathcal{L}_{MAE}$ is the mean absolute error, $SNR$ is the signal-to-noise ratio, and $\mathcal{R}_{\ell_2}$ is an $\ell_2$ regularization term.
+where:
+- $MSE$ is the mean squared error
+- $MAE$ is the mean absolute error
+- $SNR$ is the signal-to-noise ratio
+- $R_{l2}$ is an $l_2$ regularization term
+- $\lambda_{snr}$, $\lambda_{L2}$, $\lambda_{L1}$ are hyperparameters controlling the contribution of each term
 
 ### CS-SHRED Pipeline Diagram
 
 ![CS-SHRED Pipeline](figs/pipe_CS-SHRED-1.png)
 
 *Figure: Overview of the CS-SHRED pipeline. The original dynamics are subsampled, sensor time series are recovered via convex optimization, and the LSTM-decoder reconstructs the full field.*
-
-## Simulating Real-World Corrupted or Missing Data
-
-A key step in the CS-SHRED pipeline is the simulation of corrupted or missing data, which mimics real-world scenarios where sensor failures, noise, or transmission losses occur. This is mathematically achieved by applying a restriction operator $R_{op}$ to the original spatiotemporal field, masking (zeroing) selected spatial and temporal locations to emulate missing or corrupted measurements.
-
-**Purpose:**
-- To emulate practical situations where data acquisition is limited by sensor malfunctions, environmental interference, or incomplete coverage.
-- To rigorously test the model's ability to recover information from highly incomplete or corrupted measurements.
-
-**Mathematical formulation:**
-
-Let $\mathbf{x}(x, y, t)$ be the original spatiotemporal field. The subsampled (corrupted) field $\mathbf{x}_{sub}(x, y, t)$ is defined as:
-
-$$
-\mathbf{x}_{sub}(x, y, t) = 
-\begin{cases}
-0 & \text{if } y \in \mathcal{Y}_{sub} \text{ and } t \in \mathcal{T}_{sub} \\
-\mathbf{x}(x, y, t) & \text{otherwise}
-\end{cases}
-$$
-
-where $\mathcal{Y}_{sub}$ is the set of spatial locations (columns) selected for subsampling, and $\mathcal{T}_{sub}$ is the set of time snapshots selected for subsampling. The restriction operator $R_{op}$ acts as a binary mask, setting selected entries to zero and leaving the rest unchanged.
-
-This mathematical subsampling step is essential for evaluating the robustness and practical applicability of CS-SHRED in real-world environments where data is often incomplete or corrupted.
 
 ## Datasets and Scientific Context
 
