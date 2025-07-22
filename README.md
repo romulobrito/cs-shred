@@ -81,6 +81,9 @@ $$
 \Bigr)
 $$
 
+![CS-SHRED Model Equation as Image](figs/arch-design.png)
+
+*Figure: Visual representation of the main CS-SHRED model equation, showing the end-to-end mapping from subsampled sensor data to reconstructed state through compressed sensing recovery, LSTM modeling, and shallow decoding.*
 
 where:
 - $\mathcal{H}$ is the full CS-SHRED mapping from subsampled sensor data to reconstructed state.
