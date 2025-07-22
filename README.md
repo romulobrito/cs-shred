@@ -61,19 +61,26 @@ where:
 ### CS-SHRED Model Equation
 
 $$
-\mathcal{H}\left(\{ y_{\text{sub}}(i) \}_{i = t_{\text{current}} - l}^{t_{\text{current}}} \right) =
-\mathcal{F}\left(
-  \mathcal{G}\left(
-    \underset{ \{ \xi_i \} }{ \arg\min }
-    \left\|
-      \Theta \{ \xi_i \} - \{ y_{\text{sub}}(i) \}
-    \right\|_2^2
-    + \lambda \left\| \{ \xi_i \} \right\|_1
-    , W_{\text{RN}}
-  \right)
-  , W_{\text{SD}}
-\right)
+\mathcal{H}\!\bigl(\{\,y_{\text{sub}}(i)\,\}_{i = t_{\text{current}}-l}^{t_{\text{current}}}\bigr)
+\;=\;
+\mathcal{F}\!\Bigl(
+    \mathcal{G}\!\bigl(
+        \underset{\{\xi_i\}}{\arg\min}\;
+        \bigl\lVert\,
+            \Theta\,\{\xi_i\}
+            -\,
+            \{\bar y_{\text{sub}}(i)\}
+        \bigr\rVert_2^{\,2}
+        +\;
+        \lambda\,\lVert\{\xi_i\}\rVert_1
+        ;\;
+        W_{\mathrm{RN}}
+    \bigr)
+    ;\;
+    W_{\mathrm{SD}}
+\Bigr)
 $$
+
 
 where:
 - $\mathcal{H}$ is the full CS-SHRED mapping from subsampled sensor data to reconstructed state.
