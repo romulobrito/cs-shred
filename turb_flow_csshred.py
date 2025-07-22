@@ -17,7 +17,7 @@ from processdata import TimeSeriesDataset
 
 # Path to the .npy file
 npy_file_path = r"./data/turb_vy_combined.npy"
-save_path = r"./results/sst-git-csshred"
+save_path = r"./turb-git-csshred"
 
 # Check if GPU is available
 device = "cuda" if torch.cuda.is_available() else "cpu"

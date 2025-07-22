@@ -6,6 +6,7 @@ results/*/
 Data/
 data/
 data/turb_vy_combined.npy
+turb-git-csshred/
 
 # Arquivos de dados
 *.npy
