@@ -164,9 +164,8 @@ The following tables summarize the quantitative results comparing CS-SHRED and S
 
 Summary: CS-SHRED is ideal when reconstruction accuracy is critical and computational resources are available. SHRED is preferable for faster, less resource-intensive applications.
 
-## Code and Data Availability
+## Data Availability
 
-- All code is available at: https://github.com/romulobrito/turb-rot-csshred
 - Due to size, some datasets must be downloaded separately (see Usage section in the code).
 
 ## Citation
