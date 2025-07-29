@@ -12,7 +12,7 @@ import models
 from processdata import TimeSeriesDataset
 
 # data: velo_256 velo_257.h5 velo_258.h5
-# Fonte: https://smart-turb.roma2.infn.it/init/routes/#/logging/view_dataset/1/tabfile
+# source: https://smart-turb.roma2.infn.it/init/routes/#/logging/view_dataset/1/tabfile
 
 
 # Path to the .npy file
@@ -277,7 +277,7 @@ def plot_dynamics_at_sensors(
 
         if show_plot:
             plt.show()
-            # time.sleep(auto_close_time)  # Espera por um tempo específico
+            # time.sleep(auto_close_time)  # wait for a specific time
             # plt.close(fig)
         else:
             plt.close(fig)
@@ -378,6 +378,9 @@ def prepare_datasets(trace_A, trace_A_ori, num_sensors, sensor_locations, lags):
     valid_data_in = torch.tensor(all_data_in[valid_indices], dtype=torch.float32).to(
         device
     )
+    test_data_in = torch.tensor(all_data_in[test_indices], dtype=torch.float32).to(
+        device
+    )
     test_data_in_test = torch.tensor(
         all_data_in_test[test_indices], dtype=torch.float32
     ).to(device)
@@ -388,16 +391,19 @@ def prepare_datasets(trace_A, trace_A_ori, num_sensors, sensor_locations, lags):
     valid_data_out = torch.tensor(
         transformed_X[valid_indices + lags - 1], dtype=torch.float32
     ).to(device)
-
+    test_data_out = torch.tensor(
+        transformed_X[test_indices + lags - 1], dtype=torch.float32
+    ).to(device)
     test_data_out_test = torch.tensor(
         transformed_X_test[test_indices + lags - 1], dtype=torch.float32
     ).to(device)
 
     train_dataset = TimeSeriesDataset(train_data_in, train_data_out)
     valid_dataset = TimeSeriesDataset(valid_data_in, valid_data_out)
+    test_dataset = TimeSeriesDataset(test_data_in, test_data_out)
     test_dataset_test = TimeSeriesDataset(test_data_in_test, test_data_out_test)
 
-    return train_dataset, valid_dataset, test_dataset_test, sc, load_X_shape_1
+    return train_dataset, valid_dataset, test_dataset, test_dataset_test, sc, load_X_shape_1
 
 
 # Training and validation of the model
@@ -487,7 +493,7 @@ def train_and_validate_model(
 
 
 def evaluate_model(
-    model, test_dataset, sc, json_save_path=save_path + "/error_results.json"
+    model, test_dataset, test_dataset_test, sc, json_save_path=save_path + "/error_results.json"
 ):
     """
     Evaluate the model on the test dataset, computing normalized error and SSIM,
@@ -498,7 +504,9 @@ def evaluate_model(
     model : torch.nn.Module
         Trained model.
     test_dataset : Dataset
-        Test dataset.
+        Test dataset (subsampled data).
+    test_dataset_test : Dataset
+        Test dataset (original data).
     sc : MinMaxScaler
         Scaler used for normalization.
     json_save_path : str
@@ -508,38 +516,45 @@ def evaluate_model(
     -------
     test_recons : np.ndarray
         Model reconstructions (denormalized).
-    test_ground_truth : np.ndarray
-        Ground truth data (denormalized).
+    test_ground_truth_test : np.ndarray
+        Ground truth data (denormalized, original).
     error_norm : float
         Normalized error.
     """
     # Perform the prediction with the model and transform the data back to the original format
     test_recons = sc.inverse_transform(model(test_dataset.X).detach().cpu().numpy())
     test_ground_truth = sc.inverse_transform(test_dataset.Y.detach().cpu().numpy())
+    test_ground_truth_test = sc.inverse_transform(test_dataset_test.Y.detach().cpu().numpy())
 
     # Check the dimensions of the arrays
-    if test_recons.ndim != test_ground_truth.ndim:
+    if test_recons.ndim != test_ground_truth_test.ndim:
         raise ValueError(
             "The dimensions of the reconstructed and ground truth data do not correspond."
         )
 
-    # Calculate the normalized error
-    error_norm = np.linalg.norm(test_recons - test_ground_truth) / np.linalg.norm(
-        test_ground_truth
+    # Calculate the normalized error using original data
+    error_norm = np.linalg.norm(test_recons - test_ground_truth_test) / np.linalg.norm(
+        test_ground_truth_test
     )
 
-    # Calculate the SSIM for each snapshot
+    # Calculate the SSIM for each snapshot using original data
     ssim_scores = []
     for i in range(test_recons.shape[0]):
         ssim_score = ssim(
-            test_ground_truth[i],
+            test_ground_truth_test[i],
             test_recons[i],
-            data_range=test_ground_truth[i].max() - test_ground_truth[i].min(),
+            data_range=test_ground_truth_test[i].max() - test_ground_truth_test[i].min(),
         )
         ssim_scores.append(ssim_score)
+    
+    # SSIM mean of all samples
     mean_ssim = np.mean(ssim_scores)
+    
+    # SSIM of the last snapshot (most important to evaluate final quality)
+    last_snapshot_ssim = ssim_scores[-1]
 
-    print("Mean SSIM:", mean_ssim)
+    print("Mean SSIM (all samples):", mean_ssim)
+    print("Last Snapshot SSIM:", last_snapshot_ssim)
     print("Normalized Error:", error_norm)
 
     # Create the directory if it does not exist
@@ -548,12 +563,16 @@ def evaluate_model(
     # Save the results in a JSON file
     results = {
         "Normalized_Error": float(error_norm),
-        "SSIM": {"overall": float(mean_ssim), "snapshots": ssim_scores},
+        "SSIM": {
+            "mean_all_samples": float(mean_ssim), 
+            "last_snapshot": float(last_snapshot_ssim),
+            "all_snapshots": ssim_scores
+        },
     }
     with open(json_save_path, "w") as json_file:
         json.dump(results, json_file, indent=4)
 
-    return test_recons, test_ground_truth, error_norm
+    return test_recons, test_ground_truth_test, error_norm, mean_ssim, last_snapshot_ssim
 
 
 def add_model_info_to_json(json_file_path, model_type, model_params, config_params):
@@ -596,7 +615,7 @@ def add_model_info_to_json(json_file_path, model_type, model_params, config_para
 seed = 915
 verbose = True
 patience = 15
-step_epoch = 15
+np.random.seed(seed)
 # Choice of model CS-SHRED/SHRED
 model_type = "CS-SHRED"
 
@@ -612,26 +631,29 @@ num_snapshots_subsample = int(
     matrix.shape[0] * 0.3
 )  #  % of snapshots will be subsampled
 snapshot = subsample(matrix, num_cols_subsample, num_snapshots_subsample)
-visualize_data(matrix, snapshot)
+# visualize_data(matrix, snapshot)
 
 
+
+# Parameters optimized by Optuna 
 hidden_size = 256
 hidden_layers = 3
-batch_size = 32
-lr = 0.0014895148717872114
-lambL2 = 0.25133548312126097
-lambL1 = 0.009143671952434464
-lambdaSNR = 0.8552022070995943
-dropout = 0.011141643426664962
-l1_tol = 0.6262568649879984
-opt_tol = 0.00003164836283882765
-ls_tol = 0.00008094106441590975
-l1 = 400
-l2 = 400
-lags = 15
+batch_size = 8
+lr = 0.00016405841062596682
+lambL2 = 0.5777770618168943
+lambL1 = 9.888011620382175e-05
+lambdaSNR = 0.8644875563549309
+l1 = 500
+l2 = 500
+lags = 30
 num_sensors = 5
-num_epochs = 913
-step_epoch = 28
+num_epochs = 1312
+step_epoch = 34
+l1_tol = 0.0007228888870258154
+opt_tol = 0.00017764675865100242
+ls_tol = 0.11549664495934957
+dropout = 0.007879458596486309
+patience = 11
 
 
 # SHRED Turb
@@ -652,6 +674,7 @@ step_epoch = 28
 # num_sensors	=5
 # num_epochs	=1871
 # step_epoch	=23
+# patience = 15
 
 
 # Configuration of the sensors
@@ -667,7 +690,7 @@ sensor_locations, sensor_positions_x, sensor_positions_y = plot_dynamics_at_sens
 )
 
 # Preparation of the datasets
-train_dataset, valid_dataset, test_dataset, sc, load_X_shape_1 = prepare_datasets(
+train_dataset, valid_dataset, test_dataset, test_dataset_test, sc, load_X_shape_1 = prepare_datasets(
     snapshot, matrix, num_sensors, sensor_locations, lags
 )
 
@@ -734,8 +757,8 @@ else:
 
 
 # Evaluation of the model
-test_recons, test_ground_truth, error_norm = evaluate_model(
-    model, test_dataset, sc, json_save_path=save_path + r"error_results.json"
+test_recons, test_ground_truth_test, error_norm, mean_ssim, last_snapshot_ssim = evaluate_model(
+    model, test_dataset, test_dataset_test, sc, json_save_path=save_path + r"error_results.json"
 )
 
 end_time = time.time()
@@ -812,7 +835,7 @@ if model_type == "CS-SHRED":
 
     save_to_numpy(
         test_recons,
-        test_ground_truth,
+        test_ground_truth_test,
         matrix,
         snapshot,
         sensor_positions_x,
@@ -852,7 +875,7 @@ else:
 
     save_to_numpy(
         test_recons,
-        test_ground_truth,
+        test_ground_truth_test,
         matrix,
         snapshot,
         sensor_positions_x,

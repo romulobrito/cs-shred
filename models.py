@@ -55,11 +55,19 @@ def recover_signal(x, l1_precision, opt_tol, ls_tol, n_sparsity_threshold, verbo
             Op = Rop * Fop.H
             Op_adj = Fop * RopH
 
+            # Adaptative: adjusts iter_lim based on tolerances
+            if opt_tol > 1e-4 or ls_tol > 1e-4:
+                iter_lim = 1000  # Relaxed tolerances = less iterations
+            elif opt_tol > 1e-5 or ls_tol > 1e-5:
+                iter_lim = 2000  # Medium tolerances = medium iterations
+            else:
+                iter_lim = 4000  # Rigid tolerances = more iterations
+            
             x_recovered, _, _ = spgl1(
                 Op,
                 y,
                 verbosity=verbosity,
-                iter_lim=4000,
+                iter_lim=iter_lim,
                 opt_tol=opt_tol,
                 bp_tol=l1_precision,
                 ls_tol=ls_tol,
@@ -239,10 +247,7 @@ class CSSHRED(nn.Module):
 
         return output
 
-######################################
 
-
-# Original
 class SHRED(torch.nn.Module):
     """SHRED model accepts input size (number of sensors), output size (dimension of high-dimensional spatio-temporal state, hidden_size, number of LSTM layers,
     size of fully-connected layers, and dropout parameter"""
@@ -421,7 +426,7 @@ def fit_csshred_model(
     lambL2=1,
     lambL1=0.01,
     lambdaSNR=0.03,
-    step_epoch=15,
+    step_epoch=20,
     verbose=False,
     patience=5,
 ):
