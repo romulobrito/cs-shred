@@ -188,12 +188,8 @@ where
 * $F_{\text{op}}^{\!*}$ is the adjoint Fourier transform, and  
 * $\Theta = R_{\text{op}}\,F_{\text{op}}^{\!*}$.
 
-`SPGL1` ( **S**pectral **P**rojected **G**radient for **L**₁ ) returns the
-sparse coefficients $\boldsymbol{\xi}^{\*}$, which PyLops immediately
-transforms back to the physical domain before feeding the LSTM decoder.
-This strategy yields strong robustness to **extreme sub-sampling and
-sensor corruption** while adding only ≈ 8 % peak memory and < 10 % extra
-wall-clock time relative to the baseline SHRED model.
+`SPGL1` ( **S**pectral **P**rojected **G**radient for **L**₁ ) returns the sparse coefficients $\boldsymbol{\xi}^{\*}$, which PyLops immediately transforms back to the physical domain before feeding the LSTM decoder.
+This strategy yields robustness to **extreme sub-sampling and sensor corruption**.
 
 > **Config note**  
 > Solver tolerances (`l1_tol`, `opt_tol`, `ls_tol`) are exposed in  
