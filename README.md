@@ -77,10 +77,7 @@ Run CS-SHRED on turbulent flow data:
 python turb_flow_csshred.py
 ```
 
-Run hyperparameter optimization:
-```bash
-python turb_optuna.py
-```
+The model uses pre-optimized hyperparameters obtained through Optuna studies.
 
 ### Example Output
 
@@ -97,13 +94,12 @@ cs-shred/
 ├── models.py              # CS-SHRED and SHRED model architectures
 ├── processdata.py         # Data loading and preprocessing utilities
 ├── turb_flow_csshred.py   # Main training script for turbulence data
-├── sst_csshred.py         # Sea surface temperature experiments
-├── oldroyd.py             # Viscoelastic flow experiments
-├── turb_optuna.py         # Hyperparameter optimization
 ├── requirements.txt       # Python dependencies
 ├── figs/                  # Architecture diagrams and figures
 └── results/               # Output directory (created during execution)
 ```
+
+**Note:** Additional experiment scripts and Optuna optimization files are available in the development repository but not included in the main distribution for simplicity.
 ## Simulating Real-World Corrupted or Missing Data
 
 A key step in the CS-SHRED pipeline is the simulation of corrupted or missing data, which mimics real-world scenarios where sensor failures, noise, or transmission losses occur. This is mathematically achieved by applying a restriction operator to the original spatiotemporal field, masking (zeroing) selected spatial and temporal locations to emulate missing or corrupted measurements.
@@ -238,7 +234,19 @@ The following tables summarize the quantitative results comparing CS-SHRED and S
 | evaluate_model           | 25.85  | 21.88    | -15.4          |
 | Peak Total               | 785.37 | 828.01   | +5.4           |
 - All experiments were run on an Intel Core i7 CPU, 16 GB RAM, and an NVIDIA GTX 1650 GPU (4 GB VRAM), Ubuntu 22.04 LTS, CUDA 12.9.
-- Hyperparameters were optimized using the Optuna framework for both models.
+- Hyperparameters were optimized using the Optuna framework for both CS-SHRED and SHRED models across all datasets.
+
+### Hyperparameter Optimization
+
+Both CS-SHRED and SHRED models underwent comprehensive hyperparameter optimization using the Optuna framework. The optimization process included:
+
+- **Bayesian optimization** for efficient parameter space exploration
+- **Combined objective function** balancing reconstruction error (normalized L2) and structural similarity (SSIM)
+- **Weighted multi-criteria approach** using formula: `α × error_norm + (1-α) × (1-SSIM)` where α=0.5 provides equal importance
+- **SSIM-focused optimization** in specialized studies prioritizing visual quality with α=0.25
+- **Early stopping mechanisms** to prevent overfitting and improve efficiency
+
+The optimization explored comprehensive parameter spaces including network architecture (hidden layers, hidden size), training parameters (learning rate, batch size, epochs), loss function weights (L2, L1, SNR), and compressed sensing parameters (l1_tol, opt_tol, ls_tol). The reported results represent the best configurations found through this systematic process.
 
 **Key findings:**
 
@@ -255,34 +263,31 @@ Summary: CS-SHRED is ideal when reconstruction accuracy is critical and computat
 ### Turbulent Flow Experiments
 
 ```bash
-# Download turbulent flow data
-# Place data in ./Data/ directory
+# Download turbulent flow data from TURB-Rot database
+# Place data file as ./Data/turb_vy_combined.npy
 
-# Run main experiment
+# Run main CS-SHRED experiment with optimized parameters
 python turb_flow_csshred.py
-
-# Run hyperparameter optimization
-python turb_optuna.py
 ```
 
-### Sea Surface Temperature Experiments
+**Note:** The hyperparameters used in `turb_flow_csshred.py` were obtained through extensive Optuna optimization studies that implemented:
 
-```bash
-# Download SST data from NOAA
-# Configure data path in sst_csshred.py
+- **Multi-criteria objective function** combining normalized error and SSIM scores
+- **Comprehensive parameter space exploration** covering 15+ hyperparameters per trial
+- **Specialized SSIM-focused studies** using `analyze_ssim_optimization.py` for strategy comparison
+- **Early stopping and efficiency optimizations** to balance performance and computational cost
 
-# Run SST experiments
-python sst_csshred.py
-python sst_csshred_optuna.py
-```
+The optimization process systematically explored network architectures, training dynamics, loss function compositions, and compressed sensing solver tolerances to achieve optimal reconstruction performance.
 
-### Viscoelastic Flow Experiments
+### Optuna Implementation Details
 
-```bash
-# Configure Oldroyd-B simulation data path
-python oldroyd.py
-python oldroyd_optuna.py
-```
+The optimization framework includes:
+
+- **Primary study** (`turb_optuna.py`): Balanced optimization with α=0.5 weighting
+- **SSIM-focused study** (`turb_optuna_ssim_focus.py`): Visual quality prioritization with α=0.25
+- **Analysis framework** (`analyze_ssim_optimization.py`): Post-hoc strategy comparison and Pareto frontier analysis
+
+Each trial explores 15+ hyperparameters including network size, training parameters, regularization weights, and CS solver tolerances, with results stored in JSON format for comprehensive analysis.
 
 ## Configuration
 
