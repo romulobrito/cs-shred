@@ -170,7 +170,7 @@ Summary: CS-SHRED is ideal when reconstruction accuracy is critical and computat
 
 ## Citation
 
-If you use this code or results, please cite:
+If you use this code, results, or any data utilized in this work, please cite:
 
 ```bibtex
 @article{daSilva2025csshred,
