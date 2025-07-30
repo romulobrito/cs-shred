@@ -376,6 +376,7 @@ For questions, issues, or collaborations:
 **Principal Investigators:**
 - Cassio M. Oishi - [cassio.oishi@unesp.br](mailto:cassio.oishi@unesp.br)
 - J. Nathan Kutz - [kutz@uw.edu](mailto:kutz@uw.edu)
+- Diego Passos - [diego.passos@isel.pt](mailto:diego.passos@isel.pt)
 
 **Repository Issues:**
 - Report bugs and feature requests via [GitHub Issues](https://github.com/romulobrito/cs-shred/issues)
