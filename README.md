@@ -1,5 +1,9 @@
 # CS-SHRED: Enhancing SHRED for Robust Recovery of Spatiotemporal Dynamics
 
+[![License: CC-BY 4.0](https://img.shields.io/badge/License-CC%20BY%204.0-lightgrey.svg)](https://creativecommons.org/licenses/by/4.0/)
+[![arXiv](https://img.shields.io/badge/arXiv-2407.xxxxx-blue)](https://arxiv.org/abs/2407.xxxxx)
+
+
 ## Project Overview
 
 CS-SHRED is a deep learning architecture that integrates Compressed Sensing (CS) into the Shallow Recurrent Decoder (SHRED) framework to robustly reconstruct spatiotemporal dynamics from incomplete, compressed, or corrupted data. The method is designed to address the challenges of sparse sensor placements, noisy measurements, and incomplete sensor acquisitions, which are common in real-world scientific and engineering applications.
@@ -140,12 +144,15 @@ The following tables summarize the quantitative results comparing CS-SHRED and S
 | Peak Total               | 785.37 | 828.01   | +5.4           |
 - All experiments were run on an Intel Core i7 CPU, 16 GB RAM, and an NVIDIA GTX 1650 GPU (4 GB VRAM), Ubuntu 22.04 LTS, CUDA 12.9.
 - Hyperparameters were optimized using the Optuna framework for both models.
+
 **Key findings:**
+
 - CS-SHRED requires about 3x more execution time than SHRED for the Oldroyd-B dataset (160s vs 53s), mainly due to its more complex architecture and batch processing.
 - Both models have similar peak memory usage (CS-SHRED: 828 MB, SHRED: 785 MB), with CS-SHRED using only 5 percent more memory.
 - CS-SHRED has 81 percent more parameters and 4.8x higher forward pass complexity, but this does not fully explain its superior reconstruction quality, which is due to the methodology.
 - SHRED is more computationally efficient (faster per parameter), but CS-SHRED achieves higher throughput (operations per second) due to larger batch sizes.
 - The main trade-off: CS-SHRED provides much better reconstruction quality (SSIM: 0.95 vs 0.73, PSNR: 27.5 dB vs 20.1 dB, lower normalized error), at the cost of higher computational time.
+
 Summary: CS-SHRED is ideal when reconstruction accuracy is critical and computational resources are available. SHRED is preferable for faster, less resource-intensive applications.
 
 ## Data Availability
