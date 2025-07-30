@@ -168,7 +168,7 @@ If you use this code or results, please cite:
   title   = {{CS-SHRED}: Enhancing SHRED for Robust Recovery of Spatiotemporal Dynamics},
   author  = {da Silva, R. Brito and Passos, D. and Oishi, C. M. and Kutz, J. N.},
   journal = {arXiv preprint},
-  year    = {2024},
+  year    = {2025},
   eprint  = {2407.xxxxx},
 }
 ```
