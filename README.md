@@ -4,6 +4,22 @@
 [![arXiv](https://img.shields.io/badge/arXiv-2407.xxxxx-blue)](https://arxiv.org/abs/2407.xxxxx)
 
 
+## Table of Contents
+
+- [Project Overview](#project-overview)
+- [Installation](#installation)
+- [Quick Start](#quick-start)
+- [Project Structure](#project-structure)
+- [Scientific Motivation](#scientific-motivation)
+- [CS-SHRED Architecture](#cs-shred-architecture-and-mathematical-formulation)
+- [Datasets](#datasets-and-scientific-context)
+- [Experimental Results](#experimental-results-cs-shred-vs-shred)
+- [Reproducing Results](#reproducing-results)
+- [Configuration](#configuration)
+- [Data Availability](#data-availability)
+- [Citation](#citation)
+- [Contact](#contact)
+
 ## Project Overview
 
 CS-SHRED is a deep learning architecture that integrates Compressed Sensing (CS) into the Shallow Recurrent Decoder (SHRED) framework to robustly reconstruct spatiotemporal dynamics from incomplete, compressed, or corrupted data. The method is designed to address the challenges of sparse sensor placements, noisy measurements, and incomplete sensor acquisitions, which are common in real-world scientific and engineering applications.
@@ -17,7 +33,77 @@ Many scientific and engineering fields require the reconstruction of complex spa
 - Reconstruct full spatiotemporal fields from sparse, irregular, or noisy sensor data.
 - Provide reliable results even when traditional methods fail due to data loss or corruption.
 - Support applications in environmental monitoring, climate science, engineering, and medical imaging.
-- 
+
+## Installation
+
+### Prerequisites
+
+- Python 3.8 or higher
+- CUDA-compatible GPU (recommended)
+- 8GB+ RAM
+
+### Setup Environment
+
+1. Clone the repository:
+```bash
+git clone https://github.com/romulobrito/cs-shred.git
+cd cs-shred
+```
+
+2. Create and activate virtual environment:
+```bash
+python -m venv venv
+source venv/bin/activate  # On Windows: venv\Scripts\activate
+```
+
+3. Install dependencies:
+```bash
+pip install -r requirements.txt
+```
+
+### GPU Support
+
+For CUDA support, install PyTorch with CUDA:
+```bash
+pip install torch torchvision --index-url https://download.pytorch.org/whl/cu118
+```
+
+## Quick Start
+
+### Basic Usage
+
+Run CS-SHRED on turbulent flow data:
+```bash
+python turb_flow_csshred.py
+```
+
+Run hyperparameter optimization:
+```bash
+python turb_optuna.py
+```
+
+### Example Output
+
+The model will generate:
+- Reconstructed spatiotemporal fields
+- Performance metrics (SSIM, PSNR, LPIPS)
+- Visualization plots
+- Results saved in JSON format
+
+## Project Structure
+
+```
+cs-shred/
+├── models.py              # CS-SHRED and SHRED model architectures
+├── processdata.py         # Data loading and preprocessing utilities
+├── turb_flow_csshred.py   # Main training script for turbulence data
+├── sst_csshred.py         # Sea surface temperature experiments
+├── oldroyd.py             # Viscoelastic flow experiments
+├── turb_optuna.py         # Hyperparameter optimization
+├── requirements.txt       # Python dependencies
+├── figs/                  # Architecture diagrams and figures
+└── results/               # Output directory (created during execution)
+```
 ## Simulating Real-World Corrupted or Missing Data
 
 A key step in the CS-SHRED pipeline is the simulation of corrupted or missing data, which mimics real-world scenarios where sensor failures, noise, or transmission losses occur. This is mathematically achieved by applying a restriction operator to the original spatiotemporal field, masking (zeroing) selected spatial and temporal locations to emulate missing or corrupted measurements.
@@ -164,6 +250,70 @@ The following tables summarize the quantitative results comparing CS-SHRED and S
 
 Summary: CS-SHRED is ideal when reconstruction accuracy is critical and computational resources are available. SHRED is preferable for faster, less resource-intensive applications.
 
+## Reproducing Results
+
+### Turbulent Flow Experiments
+
+```bash
+# Download turbulent flow data
+# Place data in ./Data/ directory
+
+# Run main experiment
+python turb_flow_csshred.py
+
+# Run hyperparameter optimization
+python turb_optuna.py
+```
+
+### Sea Surface Temperature Experiments
+
+```bash
+# Download SST data from NOAA
+# Configure data path in sst_csshred.py
+
+# Run SST experiments
+python sst_csshred.py
+python sst_csshred_optuna.py
+```
+
+### Viscoelastic Flow Experiments
+
+```bash
+# Configure Oldroyd-B simulation data path
+python oldroyd.py
+python oldroyd_optuna.py
+```
+
+## Configuration
+
+### Key Hyperparameters
+
+| Parameter | Description | Default | Range |
+|-----------|-------------|---------|-------|
+| `hidden_size` | LSTM hidden dimensions | 64 | 32-128 |
+| `hidden_layers` | Number of LSTM layers | 2 | 1-4 |
+| `num_epochs` | Training epochs | 100 | 50-200 |
+| `batch_size` | Batch size | 32 | 16-64 |
+| `lr` | Learning rate | 0.001 | 1e-5 to 1e-2 |
+| `lags` | Temporal window size | 20 | 10-50 |
+| `num_sensors` | Number of sensors | 200 | 50-500 |
+
+### Loss Function Parameters
+
+| Parameter | Description | Default |
+|-----------|-------------|---------|
+| `lambL2` | MSE weight | 1.0 |
+| `lambL1` | MAE weight | 0.1 |
+| `lambdaSNR` | SNR regularization | 0.01 |
+
+### Compressed Sensing Parameters
+
+| Parameter | Description | Default |
+|-----------|-------------|---------|
+| `l1_tol` | L1 tolerance | 1e-4 |
+| `opt_tol` | Optimization tolerance | 1e-5 |
+| `ls_tol` | Line search tolerance | 1e-5 |
+
 ## Data Availability
 
 - Due to size, some datasets must be downloaded separately (see data file).
@@ -210,6 +360,20 @@ If you use this code, results, or any data utilized in this work, please cite:
 - J. Nathan Kutz: Senior Review, Advisory Support, Writing—Review and Editing.
   
 All authors have read and approved the final manuscript.
+
+## Contact
+
+For questions, issues, or collaborations:
+
+**Primary Contact:**
+- Romulo B. da Silva - [romulo.brito@unesp.br](mailto:romulo.brito@unesp.br)
+
+**Principal Investigators:**
+- Cassio M. Oishi - [cassio.oishi@unesp.br](mailto:cassio.oishi@unesp.br)
+- J. Nathan Kutz - [kutz@uw.edu](mailto:kutz@uw.edu)
+
+**Repository Issues:**
+- Report bugs and feature requests via [GitHub Issues](https://github.com/romulobrito/cs-shred/issues)
 
 ## Acknowledgments
 
