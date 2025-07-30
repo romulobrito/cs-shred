@@ -95,11 +95,20 @@ where:
 ## Datasets and Scientific Context
 
 CS-SHRED was validated on four diverse datasets, each representing a challenging spatiotemporal reconstruction problem:
-- **Viscoelastic Fluid (Oldroyd-B model):** Reconstructs the trace of the conformation tensor, a key indicator of elastic stress in non-Newtonian fluids. Accurate recovery is essential for understanding fluid behavior under different flow conditions.
-- **Maximum Specific Humidity (qmax):** Atmospheric dataset measuring moisture distribution, with frequent gaps and irregular sampling.
-- **Sea Surface Temperature (SST):** Oceanographic dataset with missing data due to cloud cover and satellite limitations.
-- **Rotating Turbulent Flow (TURB-Rot):** Simulated turbulent velocity fields, subsampled to emulate practical measurement constraints.
-Each dataset presents unique challenges, such as high-dimensionality, strong nonlinearity, and severe data loss.
+
+### Viscoelastic Flow (Oldroyd-B Model)
+We employ numerical simulation data from the Oldroyd-B constitutive model [Oishi et al., 2024], which describes the dynamics of non-Newtonian viscoelastic fluids. This dataset focuses on the trace of the conformation tensor, $\text{Tr}(\mathbf{C})$, a critical indicator of the fluid's elastic stress state. Given its complex nonlinear dynamics and multiple spatial and temporal scales, accurately reconstructing $\text{Tr}(\mathbf{C})$ from sparse and incomplete sensor measurements provides a rigorous test of our model's capability to capture both elastic and viscous features.
+
+### Rotating Turbulent Flow (TURB-Rot)
+The rotating turbulent flow dataset from the TURB-Rot database [Biferale et al., 2020] represents a particularly challenging scenario. Simulated on a $256^3$ grid within a triply periodic domain, the dataset encompasses a wide range of turbulent scales. By applying controlled subsampling---removing 30% of spatial columns in 30% of temporal snapshots---this dataset emulates realistic measurement constraints. Our results demonstrate that **CS-SHRED** is highly effective in reconstructing fine spatial details and dynamic behaviors, outperforming the conventional **SHRED** model, particularly in preserving temporal consistency and spatial fidelity.
+
+### Sea Surface Temperature (SST)
+The SST dataset, available at [NOAA OISST v2](https://psl.noaa.gov/thredds/catalog/Datasets/noaa.oisst.v2/catalog.html?dataset=Datasets/noaa.oisst.v2/sst.wkmean.1990-present.nc), comprises measurements of the ocean's surface temperature---critical for understanding climate patterns, ocean currents, and weather forecasting. Due to frequent gaps caused by cloud cover and satellite limitations, SST provides an ideal testbed for our model's ability to reconstruct incomplete and noisy data.
+
+### Maximum Specific Humidity (qmax)
+Accessible at [NOAA 20th Century Reanalysis](https://psl.noaa.gov/thredds/catalog/Datasets/20thC_ReanV3/Derived/8XDailies/2mMO/catalog.html?dataset=Datasets/20thC_ReanV3/Derived/8XDailies/2mMO/qmax.2m.8Xday.ltm.nc), the qmax dataset contains measurements of the maximum specific humidity, a key variable for analyzing moisture distribution and atmospheric processes. Its inherent incompleteness and irregular sampling challenge our model to accurately reconstruct the underlying spatiotemporal patterns.
+
+Each dataset presents unique challenges, such as high-dimensionality, strong nonlinearity, and severe data loss, providing comprehensive validation of CS-SHRED's robustness across diverse scientific domains.
 
 ## Experimental Results: CS-SHRED vs SHRED
 
@@ -163,13 +172,33 @@ Summary: CS-SHRED is ideal when reconstruction accuracy is critical and computat
 
 If you use this code or results, please cite:
 
-```bibtex 
-@article{daSilva2024csshred,
+```bibtex
+@article{daSilva2025csshred,
   title   = {{CS-SHRED}: Enhancing SHRED for Robust Recovery of Spatiotemporal Dynamics},
   author  = {da Silva, R. Brito and Passos, D. and Oishi, C. M. and Kutz, J. N.},
   journal = {arXiv preprint},
   year    = {2025},
   eprint  = {2407.xxxxx},
+}
+
+@article{Biferale2020TURBRotAL,
+  title={TURB-Rot. A large database of 3d and 2d snapshots from turbulent rotating flows},
+  author={Luca Biferale and Fabio Bonaccorso and Michele Buzzicotti and Patricio Clark di Leoni},
+  journal={ArXiv},
+  year={2020},
+  volume={abs/2006.07469},
+  url={https://api.semanticscholar.org/CorpusID:219687412}
+}
+
+@article{OISHI2023,
+  title={Nonlinear parametric models of viscoelastic fluid flows},
+  author={Oishi, Cassio M. and {\it et al}},
+  journal={Royal Society Open Science},
+  volume={11},
+  number={10},
+  pages={240995},
+  year={2024},
+  publisher={The Royal Society}
 }
 ```
 
