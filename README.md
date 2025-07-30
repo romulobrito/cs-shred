@@ -240,7 +240,7 @@ The following tables summarize the quantitative results comparing CS-SHRED and S
 
 Both CS-SHRED and SHRED models underwent comprehensive hyperparameter optimization using the Optuna framework. The optimization process included:
 
-- **Bayesian optimization** for efficient parameter space exploration
+- **Tree-structured Parzen Estimator (TPE)** for efficient parameter space exploration
 - **Combined objective function** balancing reconstruction error (normalized L2) and structural similarity (SSIM)
 - **Weighted multi-criteria approach** using formula: `α × error_norm + (1-α) × (1-SSIM)` where α=0.5 provides equal importance
 - **SSIM-focused optimization** in specialized studies prioritizing visual quality with α=0.25
