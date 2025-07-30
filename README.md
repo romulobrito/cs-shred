@@ -103,6 +103,7 @@ cs-shred/
 ## Simulating Real-World Corrupted or Missing Data
 
 A key step in the CS-SHRED pipeline is the simulation of corrupted or missing data, which mimics real-world scenarios where sensor failures, noise, or transmission losses occur. This is mathematically achieved by applying a restriction operator to the original spatiotemporal field, masking (zeroing) selected spatial and temporal locations to emulate missing or corrupted measurements.
+
 **Mathematical formulation (Restriction/Subsampling Operator):**
 
 $$
@@ -142,6 +143,7 @@ where:
 
 ![CS-SHRED Model Architecture](figs/arch-design.png)
 *Figure: Visual representation of the main CS-SHRED model equation, showing the end-to-end mapping from subsampled sensor data to reconstructed state through compressed sensing recovery, LSTM modeling, and shallow decoding.*
+
 where:
 - $\mathcal{H}$ is the full CS-SHRED mapping from subsampled sensor data to reconstructed state.
 - $\mathcal{F}$ is the shallow decoder (fully connected network) with weights $W_{SD}$.
@@ -150,6 +152,7 @@ where:
 - $\{y_{sub}(i)\}$ are the subsampled sensor measurements over the lag window.
 - $\Theta$ is the composition of the restriction operator and the Hermitian of the Fourier transform.
 - $\lambda$ is the sparsity regularization parameter.
+  
 This equation formalizes the end-to-end process: from corrupted sensor data, through compressed sensing recovery, temporal modeling, and final high-dimensional reconstruction.
 
 ### Adaptive Loss Function
@@ -178,19 +181,98 @@ where:
 
 CS-SHRED was validated on four diverse datasets, each representing a challenging spatiotemporal reconstruction problem:
 
-### Viscoelastic Flow (Oldroyd-B Model)
-We employ numerical simulation data from the Oldroyd-B constitutive model [Oishi et al., 2024], which describes the dynamics of non-Newtonian viscoelastic fluids. This dataset focuses on the trace of the conformation tensor, $\text{Tr}(\mathbf{C})$, a critical indicator of the fluid's elastic stress state. Given its complex nonlinear dynamics and multiple spatial and temporal scales, accurately reconstructing $\text{Tr}(\mathbf{C})$ from sparse and incomplete sensor measurements provides a rigorous test of our model's capability to capture both elastic and viscous features.
+## Benchmark Datasets  
 
-### Rotating Turbulent Flow (TURB-Rot)
-The rotating turbulent flow dataset from the TURB-Rot database [Biferale et al., 2020] represents a particularly challenging scenario. Simulated on a $256^3$ grid within a triply periodic domain, the dataset encompasses a wide range of turbulent scales. By applying controlled subsampling---removing 30% of spatial columns in 30% of temporal snapshots---this dataset emulates realistic measurement constraints. Our results demonstrate that **CS-SHRED** is highly effective in reconstructing fine spatial details and dynamic behaviors, outperforming the conventional **SHRED** model, particularly in preserving temporal consistency and spatial fidelity.
+Below we summarise the four benchmark datasets used to validate **CS-SHRED**.  
+For each case we first describe its scientific context *(original text)* and then
+state **exactly how the synthetic sub-sampling was applied** to mimic missing or
+corrupted measurements.
 
-### Sea Surface Temperature (SST)
-The SST dataset, available at [NOAA OISST v2](https://psl.noaa.gov/thredds/catalog/Datasets/noaa.oisst.v2/catalog.html?dataset=Datasets/noaa.oisst.v2/sst.wkmean.1990-present.nc), comprises measurements of the ocean's surface temperature---critical for understanding climate patterns, ocean currents, and weather forecasting. Due to frequent gaps caused by cloud cover and satellite limitations, SST provides an ideal testbed for our model's ability to reconstruct incomplete and noisy data.
+---
 
-### Maximum Specific Humidity (qmax)
-Accessible at [NOAA 20th Century Reanalysis](https://psl.noaa.gov/thredds/catalog/Datasets/20thC_ReanV3/Derived/8XDailies/2mMO/catalog.html?dataset=Datasets/20thC_ReanV3/Derived/8XDailies/2mMO/qmax.2m.8Xday.ltm.nc), the qmax dataset contains measurements of the maximum specific humidity, a key variable for analyzing moisture distribution and atmospheric processes. Its inherent incompleteness and irregular sampling challenge our model to accurately reconstruct the underlying spatiotemporal patterns.
+### Visco-elastic Flow *(Oldroyd-B model)*  
+We employ numerical simulation data from the Oldroyd-B constitutive model
+*(Oishi et al., 2024)*, which describes the dynamics of non-Newtonian
+visco-elastic fluids.  The dataset focuses on the trace of the conformation
+tensor, \(\mathrm{Tr}(\mathbf{C})\), a critical indicator of elastic stress.
+Because the flow exhibits strong non-linear dynamics across multiple scales,
+reconstructing \(\mathrm{Tr}(\mathbf{C})\) from sparse and incomplete sensors
+provides a rigorous test of our model.
 
-Each dataset presents unique challenges, such as high-dimensionality, strong nonlinearity, and severe data loss, providing comprehensive validation of CS-SHRED's robustness across diverse scientific domains.
+**Sub-sampling protocol**
+
+| Dimension | Percentage removed | Notes                                   |
+|-----------|--------------------|-----------------------------------------|
+| Spatial   | **90 %**           | Random columns masked (\(Y_{\text{sub}}\)) |
+| Temporal  | **80 %**           | Random snapshots masked (\(T_{\text{sub}}\)) |
+
+---
+
+### Rotating Turbulent Flow *(TURB-Rot)*  
+The rotating turbulent flow dataset from the TURB-Rot database *(Biferale et al.,
+2020)* is simulated on a \(256^3\) grid inside a triply-periodic box and
+contains a rich range of turbulent scales.  By design it stresses the
+reconstruction of sharp coherent structures and broadband spectra.
+
+**Sub-sampling protocol**
+
+| Dimension | Percentage removed | Notes                                   |
+|-----------|--------------------|-----------------------------------------|
+| Spatial   | **30 %**           | Random columns masked                   |
+| Temporal  | **30 %**           | Random snapshots masked                 |
+
+---
+
+### Sea-Surface Temperature *(SST)*  
+Weekly NOAA **OISST-v2** fields (1990–present)  
+<https://psl.noaa.gov/Datasets/noaa.oisst.v2/>
+
+These data are frequently corrupted by cloud cover and satellite gaps, making
+them a natural test-bed for in-painting techniques.
+
+**Sub-sampling protocol**
+
+| Dimension | Percentage removed | Notes                                   |
+|-----------|--------------------|-----------------------------------------|
+| Spatial   | **90 %**           | Random columns masked                   |
+| Temporal  | **30 %**           | Random weeks masked                     |
+
+---
+
+### Maximum Specific Humidity \((q_{\text{max}})\)  
+Daily fields from NOAA **20CR-v3**  
+<https://psl.noaa.gov/Datasets/20thC_ReanV3/>
+
+Specific humidity exhibits intermittent, filamentary structures whose accurate
+recovery is essential for climate diagnostics.
+
+**Sub-sampling protocol**
+
+| Dimension | Percentage removed | Notes                                   |
+|-----------|--------------------|-----------------------------------------|
+| Spatial   | **90 %**           | Random columns masked                   |
+| Temporal  | **30 %**           | Random days masked                      |
+
+---
+
+> **Unified masking operator**  
+> For each dataset we generate two random index sets —  
+> $Y_{\text{sub}}\subset\{1,\dots,n_y\}$ (columns) and  
+> $T_{\text{sub}}\subset\{1,\dots,n_t\}$ (snapshots) —  
+> and set  
+> \[
+> x_{\text{sub}}(x,y,t)=
+>   \begin{cases}
+>     0, & y\!\in\!Y_{\text{sub}}\ \text{and}\ t\!\in\!T_{\text{sub}},\\
+>     x(x,y,t), & \text{otherwise}.
+>   \end{cases}
+> \]
+> Percentages in the tables above define the cardinalities  
+> $|Y_{\text{sub}}|$ and $|T_{\text{sub}}|$.
+> This controlled degradation allows us to quantify the robustness of
+> **CS-SHRED** against severe data loss while keeping the original datasets
+> publicly accessible for reproducibility.
+
 
 ## Experimental Results: CS-SHRED vs SHRED
 
