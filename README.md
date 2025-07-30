@@ -179,8 +179,13 @@ where:
 CS-SHRED solves the **compressed–sensing step** with the  [`SPGL1`](https://www.cs.ubc.ca/~mpf/spgl1/) solver wrapped by [**PyLops**](https://pylops.readthedocs.io/). At every training iteration we cast the missing–data problem as a **Basis-Pursuit Denoising (BPDN)** optimisation:
 
 $$
-\min_{\boldsymbol{\xi}} \left\|\,\Theta\,\boldsymbol{\xi}-\mathbf y_{\text{sub}}\right\|_2^{2} \;+\;\lambda\,\|\boldsymbol{\xi}\|_{1},
+\min_{\boldsymbol{\xi}}
+\;
+\Bigl\lVert\,\Theta\,\boldsymbol{\xi}-\mathbf{y}_{\text{sub}}\Bigr\rVert_{2}^{2}
+\;+\;
+\lambda\,\lVert\boldsymbol{\xi}\rVert_{1},
 $$
+
 
 where  
 
