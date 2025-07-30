@@ -162,7 +162,8 @@ Summary: CS-SHRED is ideal when reconstruction accuracy is critical and computat
 ## Citation
 
 If you use this code or results, please cite:
-    ```bibtex
+
+```bibtex 
 @article{daSilva2024csshred,
   title   = {{CS-SHRED}: Enhancing SHRED for Robust Recovery of Spatiotemporal Dynamics},
   author  = {da Silva, R. Brito and Passos, D. and Oishi, C. M. and Kutz, J. N.},
@@ -170,6 +171,7 @@ If you use this code or results, please cite:
   year    = {2024},
   eprint  = {2407.xxxxx},
 }
+```
 
 ## Author Contributions
 
