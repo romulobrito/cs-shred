@@ -57,9 +57,9 @@ source venv/bin/activate  # On Windows: venv\Scripts\activate
 ```
 
 3. Install dependencies:
-```bash
-pip install -r requirements.txt
-```
+   ```bash
+   pip install -r requirements.txt
+   ```
 
 ### GPU Support
 
@@ -73,9 +73,9 @@ pip install torch torchvision --index-url https://download.pytorch.org/whl/cu118
 ### Basic Usage
 
 Run CS-SHRED on turbulent flow data:
-```bash
-python turb_flow_csshred.py
-```
+   ```bash
+   python turb_flow_csshred.py
+   ```
 
 The model uses pre-optimized hyperparameters obtained through Optuna studies.
 
@@ -312,7 +312,7 @@ The following tables summarize the quantitative results comparing CS-SHRED and S
 - All experiments were run on an Intel Core i7 CPU, 16 GB RAM, and an NVIDIA GTX 1650 GPU (4 GB VRAM), Ubuntu 22.04 LTS, CUDA 12.9.
 - Hyperparameters were optimized using the Optuna framework for both CS-SHRED and SHRED models across all datasets.
 
-### Hyperparameter Optimization
+<!-- ### Hyperparameter Optimization
 
 Both CS-SHRED and SHRED models underwent comprehensive hyperparameter optimization using the Optuna framework. The optimization process included:
 
@@ -322,7 +322,7 @@ Both CS-SHRED and SHRED models underwent comprehensive hyperparameter optimizati
 - **SSIM-focused optimization** in specialized studies prioritizing visual quality with α=0.25
 - **Early stopping mechanisms** to prevent overfitting and improve efficiency
 
-The optimization explored comprehensive parameter spaces including network architecture (hidden layers, hidden size), training parameters (learning rate, batch size, epochs), loss function weights (L2, L1, SNR), and compressed sensing parameters (l1_tol, opt_tol, ls_tol). The reported results represent the best configurations found through this systematic process.
+The optimization explored comprehensive parameter spaces including network architecture (hidden layers, hidden size), training parameters (learning rate, batch size, epochs), loss function weights (L2, L1, SNR), and compressed sensing parameters (l1_tol, opt_tol, ls_tol). The reported results represent the best configurations found through this systematic process. -->
 
 **Key findings:**
 
@@ -334,7 +334,7 @@ The optimization explored comprehensive parameter spaces including network archi
 
 Summary: CS-SHRED is ideal when reconstruction accuracy is critical and computational resources are available. SHRED is preferable for faster, less resource-intensive applications.
 
-## Reproducing Results
+<!-- ## Reproducing Results
 
 ### Turbulent Flow Experiments
 
@@ -363,7 +363,7 @@ The optimization framework includes:
 - **SSIM-focused study** (`turb_optuna_ssim_focus.py`): Visual quality prioritization with α=0.25
 - **Analysis framework** (`analyze_ssim_optimization.py`): Post-hoc strategy comparison and Pareto frontier analysis
 
-Each trial explores 15+ hyperparameters including network size, training parameters, regularization weights, and CS solver tolerances, with results stored in JSON format for comprehensive analysis.
+Each trial explores 15+ hyperparameters including network size, training parameters, regularization weights, and CS solver tolerances, with results stored in JSON format for comprehensive analysis. -->
 
 ## Configuration
 
