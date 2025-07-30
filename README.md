@@ -125,19 +125,26 @@ This mathematical subsampling step is essential for evaluating the robustness an
 
 CS-SHRED extends the SHRED model by integrating a compressed sensing recovery step before the LSTM and decoder. The pipeline consists of:
 1. **Data Subsampling:** Randomly remove a percentage of spatial columns and time snapshots to simulate missing or corrupted sensor data.
-2. **Compressed Sensing Recovery:** For each batch, solve a convex optimization problem to recover missing values. This uses a restriction operator and the Hermitian of the Fourier transform. The recovery step is:
+2. **Compressed Sensing Recovery:** CS-SHRED solves the **compressed–sensing step** with the  [`SPGL1`](https://www.cs.ubc.ca/~mpf/spgl1/) solver wrapped by [**PyLops**](https://pylops.readthedocs.io/). At every training iteration we cast the missing–data problem as a **Basis-Pursuit Denoising (BPDN)** optimization:
 
 $$
 \arg\min_{\{\xi_i\}} \| \Theta \{\xi_i\} - \{y_{sub}(i)\} \|_2^2 + \lambda \| \{\xi_i\} \|_1
 $$
 
-where:
-- $\Theta$ is the composition of the restriction operator and the Hermitian of the Fourier transform,
-- $\{y_{sub}(i)\}$ are the observed (nonzero) sensor values,
-- $\lambda$ is the sparsity regularization parameter.
-3. **LSTM Sequence Modeling:** The recovered time series from sensors is processed by LSTM layers to capture temporal dependencies.
-4. **Shallow Decoder:** The LSTM output is mapped to the high-dimensional state space using a shallow fully connected network.
-5. **Adaptive Loss Function:** Training uses a loss that combines mean squared error, mean absolute error, and a signal-to-noise ratio (SNR) penalty, with regularization to promote robustness and sparsity.
+where  
+
+* $R_{\text{op}}$ is a restriction (masking) operator,  
+* $F_{\text{op}}^{\!*}$ is the adjoint Fourier transform, and  
+* $\Theta = R_{\text{op}}\,F_{\text{op}}^{\!*}$.
+* $\{y_{sub}(i)\}$ are the observed (nonzero) sensor values,
+* $\lambda$ is the sparsity regularization parameter.
+
+
+`SPGL1` ( **S**pectral **P**rojected **G**radient for **L**₁ ) returns the sparse coefficients $\boldsymbol{\xi}^{\*}$, which PyLops immediately transforms back to the physical domain before feeding the LSTM decoder.
+This strategy yields robustness to **extreme sub-sampling and sensor corruption**.
+1. **LSTM Sequence Modeling:** The recovered time series from sensors is processed by LSTM layers to capture temporal dependencies.
+2. **Shallow Decoder:** The LSTM output is mapped to the high-dimensional state space using a shallow fully connected network.
+3. **Adaptive Loss Function:** Training uses a loss that combines mean squared error, mean absolute error, and a signal-to-noise ratio (SNR) penalty, with regularization to promote robustness and sparsity.
 
 ### CS-SHRED Model Equation
 
@@ -176,30 +183,7 @@ where:
 
 ## Sparse‐Recovery Backend 
 
-CS-SHRED solves the **compressed–sensing step** with the  [`SPGL1`](https://www.cs.ubc.ca/~mpf/spgl1/) solver wrapped by [**PyLops**](https://pylops.readthedocs.io/). At every training iteration we cast the missing–data problem as a **Basis-Pursuit Denoising (BPDN)** optimisation:
 
-$$
-\arg\min_{\{\xi_i\}} \| \Theta \{\xi_i\} - \{y_{sub}(i)\} \|_2^2 + \lambda \| \{\xi_i\} \|_1
-$$
-
-where  
-
-* $R_{\text{op}}$ is a restriction (masking) operator,  
-* $F_{\text{op}}^{\!*}$ is the adjoint Fourier transform, and  
-* $\Theta = R_{\text{op}}\,F_{\text{op}}^{\!*}$.
-
-`SPGL1` ( **S**pectral **P**rojected **G**radient for **L**₁ ) returns the sparse coefficients $\boldsymbol{\xi}^{\*}$, which PyLops immediately transforms back to the physical domain before feeding the LSTM decoder.
-This strategy yields robustness to **extreme sub-sampling and sensor corruption**.
-
-> **Config note**  
-> Solver tolerances (`l1_tol`, `opt_tol`, `ls_tol`) are exposed in  
-> `config.yaml` and were jointly tuned with the network hyper-parameters
-> during the Optuna sweeps (see *Hyperparameter Optimisation*).
-
-```bash
-# install optional dependencies
-pip install pylops spgl1
-```
 
 ### CS-SHRED Pipeline Diagram
 
