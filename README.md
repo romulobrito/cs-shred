@@ -1,7 +1,7 @@
 # CS-SHRED: Enhancing SHRED for Robust Recovery of Spatiotemporal Dynamics
 
 [![License: CC-BY 4.0](https://img.shields.io/badge/License-CC%20BY%204.0-lightgrey.svg)](https://creativecommons.org/licenses/by/4.0/)
-[![arXiv](https://img.shields.io/badge/arXiv-2407.xxxxx-blue)](https://arxiv.org/abs/2407.xxxxx)
+[![arXiv](https://img.shields.io/badge/arXiv-2507.22303-blue)](https://arxiv.org/abs/2507.22303)
 
 
 ## Table of Contents
@@ -409,7 +409,7 @@ If you use this code, results, or any data utilized in this work, please cite:
   author  = {da Silva, R. Brito and Passos, D. and Oishi, C. M. and Kutz, J. N.},
   journal = {arXiv preprint},
   year    = {2025},
-  eprint  = {2407.xxxxx},
+  eprint  = {2507.22303},
 }
 
 @article{Biferale2020TURBRotAL,
