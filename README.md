@@ -207,23 +207,23 @@ corrupted measurements.
 We employ numerical simulation data from the Oldroyd-B constitutive model
 *(Oishi et al., 2024)*, which describes the dynamics of non-Newtonian
 visco-elastic fluids.  The dataset focuses on the trace of the conformation
-tensor, \(\mathrm{Tr}(\mathbf{C})\), a critical indicator of elastic stress.
+tensor, $\mathrm{Tr}(\mathbf{C})$, a critical indicator of elastic stress.
 Because the flow exhibits strong non-linear dynamics across multiple scales,
-reconstructing \(\mathrm{Tr}(\mathbf{C})\) from sparse and incomplete sensors
+reconstructing $\mathrm{Tr}(\mathbf{C})$ from sparse and incomplete sensors
 provides a rigorous test of our model.
 
 **Sub-sampling protocol**
 
 | Dimension | Percentage removed | Notes                                   |
 |-----------|--------------------|-----------------------------------------|
-| Spatial   | **90 %**           | Random columns masked (\(Y_{\text{sub}}\)) |
-| Temporal  | **80 %**           | Random snapshots masked (\(T_{\text{sub}}\)) |
+| Spatial   | **90 %**           | Random columns masked ($Y_{\text{sub}}$) |
+| Temporal  | **80 %**           | Random snapshots masked ($T_{\text{sub}}$) |
 
 ---
 
 ### Rotating Turbulent Flow *(TURB-Rot)*  
 The rotating turbulent flow dataset from the TURB-Rot database *(Biferale et al.,
-2020)* is simulated on a \(256^3\) grid inside a triply-periodic box and
+2020)* is simulated on a $256^3$ grid inside a triply-periodic box and
 contains a rich range of turbulent scales.  By design it stresses the
 reconstruction of sharp coherent structures and broadband spectra.
 
@@ -252,7 +252,7 @@ them a natural test-bed for in-painting techniques.
 
 ---
 
-### Maximum Specific Humidity \((q_{\text{max}})\)  
+### Maximum Specific Humidity $(q_{\text{max}})$  
 Daily fields from NOAA **20CR-v3**  
 <https://psl.noaa.gov/Datasets/20thC_ReanV3/>
 
