@@ -15,6 +15,9 @@ turb-git-csshred/
 *.json
 *.pth
 
+# Bancos de dados Optuna
+*.db
+
 # Python
 __pycache__/
 *.py[cod]
