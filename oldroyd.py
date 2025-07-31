@@ -695,52 +695,85 @@ def train_and_validate_model(
 
 
 @monitor_performance
-def evaluate_model(model, test_dataset, sc, json_save_path=save_path +'/error_results.json'):
+def evaluate_model(model, test_dataset, test_dataset_test, sc, json_save_path=save_path +'/error_results.json'):
     """
-    Avalia o modelo calculando o erro normalizado e o SSIM entre as previsões e o ground truth.
+    Evaluate the model on the test dataset, computing normalized error and SSIM,
+    and save results to a JSON file.
 
-    :param model: O modelo treinado.
-    :param test_dataset: O conjunto de dados de teste.
-    :param sc: O scaler usado para normalizar os dados.
-    :param json_save_path: Caminho para salvar os resultados em um arquivo JSON.
-    :return: Dados reconstruídos, dados verdadeiros e o erro normalizado.
+    Parameters
+    ----------
+    model : torch.nn.Module
+        Trained model.
+    test_dataset : Dataset
+        Test dataset (subsampled data).
+    test_dataset_test : Dataset
+        Test dataset (original data).
+    sc : MinMaxScaler
+        Scaler used for normalization.
+    json_save_path : str
+        Path to save the results JSON.
+
+    Returns
+    -------
+    test_recons : np.ndarray
+        Model reconstructions (denormalized).
+    test_ground_truth_test : np.ndarray
+        Ground truth data (denormalized, original).
+    error_norm : float
+        Normalized error.
+    mean_ssim : float
+        Mean SSIM across all snapshots.
+    last_snapshot_ssim : float
+        SSIM of the last snapshot.
     """
-    # Realiza a previsão com o modelo e transforma os dados de volta ao formato original
+    # Perform the prediction with the model and transform the data back to the original format
     test_recons = sc.inverse_transform(model(test_dataset.X).detach().cpu().numpy())
     test_ground_truth = sc.inverse_transform(test_dataset.Y.detach().cpu().numpy())
+    test_ground_truth_test = sc.inverse_transform(test_dataset_test.Y.detach().cpu().numpy())
     
-    # Verifica as dimensões dos arrays
-    if test_recons.ndim != test_ground_truth.ndim:
-        raise ValueError("As dimensões dos dados reconstruídos e ground truth não correspondem.")
+    # Check the dimensions of the arrays
+    if test_recons.ndim != test_ground_truth_test.ndim:
+        raise ValueError("The dimensions of the reconstructed and ground truth data do not correspond.")
     
-    # Calcula o erro normalizado
-    error_norm = np.linalg.norm(test_recons - test_ground_truth) / np.linalg.norm(test_ground_truth)
+    # Calculate the normalized error using original data
+    error_norm = np.linalg.norm(test_recons - test_ground_truth_test) / np.linalg.norm(test_ground_truth_test)
     
-    # Calcula o SSIM para cada snapshot
+    # Calculate the SSIM for each snapshot using original data
     ssim_scores = []
     for i in range(test_recons.shape[0]):
-        ssim_score = ssim(test_ground_truth[i], test_recons[i], data_range=test_ground_truth[i].max() - test_ground_truth[i].min())
+        ssim_score = ssim(
+            test_ground_truth_test[i],
+            test_recons[i],
+            data_range=test_ground_truth_test[i].max() - test_ground_truth_test[i].min(),
+        )
         ssim_scores.append(ssim_score)
+    
+    # SSIM mean of all samples
     mean_ssim = np.mean(ssim_scores)
     
-    print("Mean SSIM:", mean_ssim)
+    # SSIM of the last snapshot (most important to evaluate final quality)
+    last_snapshot_ssim = ssim_scores[-1]
+
+    print("Mean SSIM (all samples):", mean_ssim)
+    print("Last Snapshot SSIM:", last_snapshot_ssim)
     print("Normalized Error:", error_norm)
     
-    # Cria o diretório se não existir
+    # Create the directory if it does not exist
     os.makedirs(os.path.dirname(json_save_path), exist_ok=True)
     
-    # Salva os resultados em um arquivo JSON
+    # Save the results in a JSON file
     results = {
-        'Normalized_Error': float(error_norm),
-        'SSIM': {
-            'overall': float(mean_ssim),
-            'snapshots': ssim_scores
-        }
+        "Normalized_Error": float(error_norm),
+        "SSIM": {
+            "mean_all_samples": float(mean_ssim), 
+            "last_snapshot": float(last_snapshot_ssim),
+            "all_snapshots": ssim_scores
+        },
     }
     with open(json_save_path, 'w') as json_file:
         json.dump(results, json_file, indent=4)
 
-    return test_recons, test_ground_truth, error_norm
+    return test_recons, test_ground_truth_test, error_norm, mean_ssim, last_snapshot_ssim
 
 
 def add_model_info_to_json(json_file_path, model_type, model_params, config_params):
@@ -944,7 +977,7 @@ sensor_locations, sensor_positions_x, sensor_positions_y = plot_dynamics_at_sens
 )
 
 # Preparação dos conjuntos de dados
-train_dataset, valid_dataset, test_dataset, sc, load_X_shape_1 = prepare_datasets(
+train_dataset, valid_dataset, test_dataset_test, sc, load_X_shape_1 = prepare_datasets(
     snapshot, matrix, num_sensors, sensor_locations, lags
 )
 
@@ -1023,7 +1056,7 @@ else:
 
 
 # Avaliação do modelo
-test_recons, test_ground_truth, error_norm = evaluate_model(model, test_dataset, sc, json_save_path=save_path+ r'error_results.json')
+test_recons, test_ground_truth_test, error_norm, mean_ssim, last_snapshot_ssim = evaluate_model(model, test_dataset_test, test_dataset_test, sc, json_save_path=save_path+ r'error_results.json')
 
 
 
@@ -1096,7 +1129,7 @@ if model_type == 'CS-SHRED':
         
         print(f"Results saved in {directory}")
 
-    save_to_numpy(test_recons, test_ground_truth, matrix, snapshot, sensor_positions_x, sensor_positions_y, train_error, validation_errors, model)
+    save_to_numpy(test_recons, test_ground_truth_test, matrix, snapshot, sensor_positions_x, sensor_positions_y, train_error, validation_errors, model)
 
 else:
     
@@ -1116,7 +1149,7 @@ else:
         
         print(f"Results saved in {directory}")
 
-    save_to_numpy(test_recons, test_ground_truth, matrix, snapshot, sensor_positions_x, sensor_positions_y, validation_errors, model)
+    save_to_numpy(test_recons, test_ground_truth_test, matrix, snapshot, sensor_positions_x, sensor_positions_y, validation_errors, model)
 
 
 
