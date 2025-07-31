@@ -196,7 +196,7 @@ def prepare_datasets(trace_A, trace_A_ori, num_sensors, sensor_locations, lags):
     sc = sc.fit(load_X[train_indices])
     transformed_X = sc.transform(load_X)
 
-    sc_test = sc.fit(load_X_test[train_indices])
+    # Usar o mesmo scaler para evitar data leakage
     transformed_X_test = sc.transform(load_X_test)
 
     all_data_in = np.zeros((load_X_shape_0 - lags, lags, num_sensors))
@@ -332,15 +332,36 @@ def evaluate_model(model, test_dataset, test_dataset_test, sc):
     test_ground_truth = sc.inverse_transform(test_dataset.Y.detach().cpu().numpy())
     test_ground_truth_test = sc.inverse_transform(test_dataset_test.Y.detach().cpu().numpy())
     
+    # Check the dimensions of the arrays
+    if test_recons.ndim != test_ground_truth_test.ndim:
+        raise ValueError(
+            "The dimensions of the reconstructed and ground truth data do not correspond."
+        )
+    
+    # Calculate the normalized error using original data
     error_norm = np.linalg.norm(test_recons - test_ground_truth_test) / np.linalg.norm(test_ground_truth_test)
     
-    # Calcular o SSIM
-    ssim_score = ssim(test_ground_truth_test, test_recons, data_range=test_recons.max() - test_recons.min())
+    # Calculate the SSIM for each snapshot using original data
+    ssim_scores = []
+    for i in range(test_recons.shape[0]):
+        ssim_score = ssim(
+            test_ground_truth_test[i],
+            test_recons[i],
+            data_range=test_ground_truth_test[i].max() - test_ground_truth_test[i].min(),
+        )
+        ssim_scores.append(ssim_score)
+    
+    # SSIM médio de todas as amostras
+    mean_ssim = np.mean(ssim_scores)
+    
+    # SSIM do último snapshot (mais importante para avaliar qualidade final)
+    last_snapshot_ssim = ssim_scores[-1]  # Último elemento da lista
     
     print("Normalized Error:", error_norm)
-    print("SSIM:", ssim_score)
+    print("Mean SSIM (all samples):", mean_ssim)
+    print("Last Snapshot SSIM:", last_snapshot_ssim)
     
-    return test_recons, test_ground_truth, test_ground_truth_test, error_norm, ssim_score
+    return test_recons, test_ground_truth, test_ground_truth_test, error_norm, mean_ssim, last_snapshot_ssim
 
 
 def objective(trial):
@@ -545,7 +566,7 @@ def objective(trial):
     
     test_recons = sc.inverse_transform(model(test_dataset.X).detach().cpu().numpy())
     test_ground_truth = sc.inverse_transform(test_dataset.Y.detach().cpu().numpy())
-    test_ground_truth_test = sc_test.inverse_transform(
+    test_ground_truth_test = sc.inverse_transform(
         test_dataset_test.Y.detach().cpu().numpy()
     )
     print("test_recons shape:", test_recons.shape)
@@ -561,7 +582,7 @@ def objective(trial):
 
     # ssim_score = calculate_ssim(test_recons, test_ground_truth_test)  
 
-    test_recons, test_ground_truth, test_ground_truth_test, error_norm, ssim_score = evaluate_model(model, test_dataset, test_dataset_test, sc)
+    test_recons, test_ground_truth, test_ground_truth_test, error_norm, mean_ssim, last_snapshot_ssim = evaluate_model(model, test_dataset, test_dataset_test, sc)
 
     with open(os.path.join(results_dir, f"{trial.number}_results.json"), "w") as f:
         results = {
@@ -586,11 +607,34 @@ def objective(trial):
             "step_epoch": step_epoch,
             "error_norm": float(error_norm),
             "validation_errors": np.mean(validation_errors),           
-            "ssim_score": float(ssim_score),
+            "ssim_score_mean": float(mean_ssim),
+            "ssim_score_last": float(last_snapshot_ssim),
         }
         json.dump(results, f, indent=4)
 
-    return float(error_norm)
+    # Função objetivo multicriterial: combina erro normalizado e SSIM
+    # Objetivo: minimizar erro E maximizar SSIM
+    # Formula: alpha * error_norm + (1 - alpha) * (1 - mean_ssim)
+    alpha = 0.5  # peso balanceado (igual importância)
+    
+    # Normalizando os valores para ter escalas similares
+    # error_norm já está entre 0-1, SSIM também está entre 0-1
+    objective_value = alpha * error_norm + (1 - alpha) * (1 - mean_ssim)
+    
+    print(f"Objective components - Error: {error_norm:.4f}, SSIM: {mean_ssim:.4f}")
+    print(f"Combined Objective: {objective_value:.4f}")
+    
+    # Adicionar o valor objetivo ao JSON
+    with open(os.path.join(results_dir, f"{trial.number}_results.json"), "r") as f:
+        results = json.load(f)
+    
+    results["objective_value"] = float(objective_value)
+    results["objective_alpha"] = alpha
+    
+    with open(os.path.join(results_dir, f"{trial.number}_results.json"), "w") as f:
+        json.dump(results, f, indent=4)
+
+    return float(objective_value)
 
 
 # Early stopping callback for Optuna
