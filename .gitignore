@@ -44,3 +44,22 @@ Thumbs.db
 # IDEs
 .vscode/
 .idea/
+
+# Non-essential files (keep only TURB minimal example and figures)
+README_cs_shred.md
+analyze_ssim_optimization.py
+complexity_analysis.py
+oldroyd.py
+oldroyd_optuna.py
+run_complexity_analysis.py
+sst_csshred.py
+sst_csshred_optuna.py
+turb_optuna.py
+turb_optuna_ssim_focus.py
+test_complexity_*.py
+plot_*.ipynb
+plot_*_corrected.py
+csshred-sst/
+shred-sst/
+test_results/
+lib64
