@@ -347,9 +347,10 @@ def fit(
     step_epoch=50,
     verbose=False,
     patience=5,
+    generator=None,
 ):
     """Function for training SHRED and SDN models"""
-    train_loader = DataLoader(train_dataset, shuffle=True, batch_size=batch_size)
+    train_loader = DataLoader(train_dataset, shuffle=True, batch_size=batch_size, generator=generator)
     criterion = torch.nn.MSELoss()
     optimizer = torch.optim.Adam(model.parameters(), lr=lr)
     val_error_list = []
@@ -429,8 +430,9 @@ def fit_csshred_model(
     step_epoch=20,
     verbose=False,
     patience=5,
+    generator=None,
 ):
-    train_loader = DataLoader(train_dataset, shuffle=True, batch_size=batch_size)
+    train_loader = DataLoader(train_dataset, shuffle=True, batch_size=batch_size, generator=generator)
     criterion = torch.nn.MSELoss()
     criterion2 = torch.nn.L1Loss()
     weight_decay = 1e-4
@@ -493,14 +495,25 @@ def fit_csshred_model(
 
                 # Calculating the validation SNR
                 val_snr = calculate_snr(valid_dataset.Y, val_outputs)
+                
+                # CORRIGIDO: Calcular MSE e L1 usando dados de VALIDACAO, nao do treinamento
+                # As variaveis lossMSE e lossL1 do loop de treinamento nao existem neste escopo
+                val_lossMSE = criterion(val_outputs, valid_dataset.Y)
+                val_lossL1 = criterion2(val_outputs, torch.zeros_like(val_outputs))
 
                 # Adjusting the validation loss to incentivize the maximization of the SNR
                 if val_snr > 0:
                     val_loss = (
-                        torch.clamp(1 / (val_snr + 1e-8), max=100.0)  * lambdaSNR + lambL2 * lossMSE + lambL1 * lossL1
+                        torch.clamp(1 / (val_snr + 1e-8), max=100.0) * lambdaSNR 
+                        + lambL2 * val_lossMSE 
+                        + lambL1 * val_lossL1
                     )
                 else:
-                    val_loss = val_snr * lambdaSNR + lambL2 * lossMSE + lambL1 * lossL1
+                    val_loss = (
+                        -val_snr * lambdaSNR 
+                        + lambL2 * val_lossMSE 
+                        + lambL1 * val_lossL1
+                    )
 
                 val_error_list.append(val_loss)
             scheduler.step(val_loss)
@@ -510,7 +523,7 @@ def fit_csshred_model(
                 print("Training epoch " + str(epoch))
                 print("Training Error: " + str(avg_train_loss))
                 print("Validation Error:" + str(val_loss.item()))
-                print("SNR:" + str(snr.item()))
+                print("Validation SNR:" + str(val_snr.item()))
 
             if len(val_error_list) > 0:
                 if val_loss == torch.min(torch.tensor(val_error_list)):

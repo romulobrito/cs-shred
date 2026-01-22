@@ -221,59 +221,59 @@ def plot_dynamics_at_sensors(
 
     # Plot and save if requested
     if save_plot and save_path:
-    sensor_temperature_history = []
-    for t in range(dim_t):
-        sensor_temperatures = [
-            trace_A[int(dim_x * x), int(dim_y * y), t]
-            for x, y in zip(sensor_positions_x, sensor_positions_y)
-        ]
-        sensor_temperature_history.append(sensor_temperatures)
+        sensor_temperature_history = []
+        for t in range(dim_t):
+            sensor_temperatures = [
+                trace_A[int(dim_x * x), int(dim_y * y), t]
+                for x, y in zip(sensor_positions_x, sensor_positions_y)
+            ]
+            sensor_temperature_history.append(sensor_temperatures)
 
-    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(14, 6))
+        fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(14, 6))
 
         y = np.linspace(0, 1, int(dim_x))
         x = np.linspace(0, 1, int(dim_y))
-    X, Y = np.meshgrid(x, y)
+        X, Y = np.meshgrid(x, y)
 
         cmap = ax1.pcolormesh(
             X, Y, trace_A[:, :, -1].real, shading="auto", cmap="viridis"
         )
         fig.colorbar(cmap, ax=ax1, label=r"$|v_y|$")
         ax1.set_title("Velocity field $|v_y|$")
-    ax1.set_xlabel("X")
-    ax1.set_ylabel("Y")
+        ax1.set_xlabel("X")
+        ax1.set_ylabel("Y")
 
-    ax1.scatter(
-                sensor_positions_x,
-                sensor_positions_y,
-                color="k",
-                label="Sensor Positions",
-    )
-    ax1.legend()
+        ax1.scatter(
+            sensor_positions_x,
+            sensor_positions_y,
+            color="k",
+            label="Sensor Positions",
+        )
+        ax1.legend()
 
-    sensor_temperature_history = np.array(sensor_temperature_history)
-    for i, sensor_data in enumerate(sensor_temperature_history.T):
-        ax2.plot(range(dim_t), sensor_data, label=f"Sensor {i+1}")
+        sensor_temperature_history = np.array(sensor_temperature_history)
+        for i, sensor_data in enumerate(sensor_temperature_history.T):
+            ax2.plot(range(dim_t), sensor_data, label=f"Sensor {i+1}")
 
-    ax2.set_xlabel("Time Step")
+        ax2.set_xlabel("Time Step")
         ax2.set_ylabel("Amplitude Velocity $v_y$")
-    ax2.set_title("Dynamics at Sensor Positions")
-    ax2.legend()
-    ax2.grid(True)
+        ax2.set_title("Dynamics at Sensor Positions")
+        ax2.legend()
+        ax2.grid(True)
 
-    plt.tight_layout()
+        plt.tight_layout()
 
         if not os.path.exists(save_path):
             os.makedirs(save_path)
-            save_file = os.path.join(save_path, file_name)
-            plt.savefig(save_file)
-            plt.savefig(save_file.replace('.png', '.pdf'))
-            print(f"Plot saved to {save_file}")
+        save_file = os.path.join(save_path, file_name)
+        plt.savefig(save_file)
+        plt.savefig(save_file.replace('.png', '.pdf'))
+        print(f"Plot saved to {save_file}")
 
-            if show_plot:
-    plt.show()
-            else:
-                plt.close(fig)
+        if show_plot:
+            plt.show()
+        else:
+            plt.close(fig)
 
     return sensor_locations, sensor_positions_x, sensor_positions_y
 
@@ -295,7 +295,6 @@ def train_and_validate_model(
     verbose,
     patience,
     generator=None,
-    weight_missing_data=0.0,
 ):
     if type_model == "CS-SHRED":
         train_error, validation_errors = models.fit_csshred_model(
@@ -311,7 +310,6 @@ def train_and_validate_model(
             verbose=verbose,
             patience=patience,
             generator=generator,  # Pass generator for reproducibility
-            weight_missing_data=weight_missing_data,  # Peso para dados faltantes
         )
         return train_error, validation_errors
     else:
@@ -419,16 +417,12 @@ def objective(trial):
     opt_tol = trial.suggest_float("opt_tol", 1e-5, 1, log=True)
     ls_tol = trial.suggest_float("ls_tol", 1e-5, 1, log=True)
     dropout = trial.suggest_float("dropout", 0.01, 0.011) 
-    # Peso para penalizar mais amostras com dados faltantes (0.0 = desabilitado)
-    weight_missing_data = trial.suggest_float("weight_missing_data", 0.0, 5.0)
-    
 
     # Adicionar print dos novos parâmetros
     print("l1_tol=", l1_tol)
     print("opt_tol=", opt_tol)
     print("ls_tol=", ls_tol)
     print("dropout=", dropout)  
-    print("weight_missing_data=", weight_missing_data)  
 
     print("hidden_size=", hidden_size)
     print("hidden_layers=", hidden_layers)
@@ -609,7 +603,6 @@ def objective(trial):
             verbose=False,
             patience=15,
             generator=generator,  # Pass generator for reproducibility
-            weight_missing_data=weight_missing_data,  # Peso para dados faltantes
         )
     else:
         model = models.SHRED(  # 64
@@ -742,7 +735,6 @@ def objective(trial):
             "l1_tol": float(l1_tol),
             "opt_tol": float(opt_tol),
             "ls_tol": float(ls_tol),
-            "weight_missing_data": float(weight_missing_data),  
             "l1": l1,
             "l2": l2,
             "lags": lags,
@@ -838,13 +830,11 @@ def save_best_trial_artifacts(best_trial, results_dir, npy_file_path, model_type
     l1_tol = best_trial.params.get("l1_tol")
     opt_tol = best_trial.params.get("opt_tol")
     ls_tol = best_trial.params.get("ls_tol")
-    weight_missing_data = best_trial.params.get("weight_missing_data", 0.0)  # Default 0.0 se não existir
     
     print(f"\nParâmetros do melhor trial (Trial {best_trial.number}):")
     print(f"  hidden_size: {hidden_size}, hidden_layers: {hidden_layers}")
     print(f"  batch_size: {batch_size}, lr: {lr:.6f}")
     print(f"  lags: {lags}, num_sensors: {num_sensors}, num_epochs: {num_epochs}")
-    print(f"  weight_missing_data: {weight_missing_data:.3f}")
     
     # 1. Carregar dados
     print("\n[1/7] Carregando dados...")
@@ -989,8 +979,7 @@ def save_best_trial_artifacts(best_trial, results_dir, npy_file_path, model_type
             lambdaSNR=lambdaSNR,
             verbose=True,  # Mostrar progresso
             patience=15,
-            generator=generator,
-            weight_missing_data=weight_missing_data,  # Peso para dados faltantes
+            generator=generator,  # Pass generator for reproducibility
         )
     else:
         model = models.SHRED(
@@ -1012,7 +1001,7 @@ def save_best_trial_artifacts(best_trial, results_dir, npy_file_path, model_type
             step_epoch=step_epoch,
             verbose=True,
             patience=15,
-            generator=generator,
+            generator=generator,  # Pass generator for reproducibility
         )
         train_error = None  # SHRED não retorna train_error
     
@@ -1097,7 +1086,6 @@ best_params = {
     "l1_tol": float(trial.params.get("l1_tol")),
     "opt_tol": float(trial.params.get("opt_tol")),
     "ls_tol": float(trial.params.get("ls_tol")),
-    "weight_missing_data": float(trial.params.get("weight_missing_data")),  
     "step_epoch": trial.params.get("step_epoch"),
 }
 
