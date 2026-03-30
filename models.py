@@ -1,5 +1,5 @@
 import torch
-from torch.utils.data import DataLoader
+from torch.utils.data import DataLoader, Sampler
 import torch.nn.functional as F
 import numpy as np
 import torch.nn as nn
@@ -16,20 +16,40 @@ import torch
 import warnings
 warnings.filterwarnings("ignore", message="Linesearch failed with error 1")
 
+
+class SequentialBlockBatchSampler(Sampler):
+    """Yields contiguous index blocks so batch axis is temporal for CS (FFT)."""
+
+    def __init__(self, data_source_length, batch_size, shuffle_blocks=True, generator=None):
+        self.data_source_length = data_source_length
+        self.batch_size = batch_size
+        self.shuffle_blocks = shuffle_blocks
+        self.generator = generator
+
+    def __iter__(self):
+        blocks = []
+        for start in range(0, self.data_source_length, self.batch_size):
+            end = min(start + self.batch_size, self.data_source_length)
+            blocks.append(list(range(start, end)))
+        if self.shuffle_blocks:
+            if self.generator is not None:
+                perm = torch.randperm(len(blocks), generator=self.generator)
+            else:
+                perm = torch.randperm(len(blocks))
+            blocks = [blocks[i] for i in perm]
+        for block in blocks:
+            yield block
+
+    def __len__(self):
+        return (self.data_source_length + self.batch_size - 1) // self.batch_size
+
+
 ###################################### CS-SHRED
 def recover_signal(x, l1_precision, opt_tol, ls_tol, n_sparsity_threshold, verbosity):
-    """_summary_
+    """
+    Run SPGL1 / PyLops CS recovery on a 1-D batch slice.
 
-    Args:
-        x (_type_): _description_
-        l1_precision (_type_): _description_
-        opt_tol (_type_): _description_
-        ls_tol (_type_): _description_
-        n_sparsity_threshold (_type_): _description_
-        verbosity (_type_): _description_
-
-    Returns:
-        _type_: _description_
+    If the fraction of zeros in x is below n_sparsity_threshold, returns x unchanged.
     """
 
     
@@ -46,7 +66,7 @@ def recover_signal(x, l1_precision, opt_tol, ls_tol, n_sparsity_threshold, verbo
         try:
             print("Starting signal recovery")
         
-            iava = np.nonzero(x_np > 0)[0]
+            iava = np.nonzero(x_np != 0)[0]
             Rop = pylops.Restriction(x.numel(), iava=iava, dtype="float64")
             y = Rop * x_np
             RopH = Rop.H
@@ -75,7 +95,7 @@ def recover_signal(x, l1_precision, opt_tol, ls_tol, n_sparsity_threshold, verbo
             )
 
             recovered_signal_time = Fop.H * x_recovered
-            recovered_signal_time = recovered_signal_time.reshape(x.shape)
+            recovered_signal_time = np.real(recovered_signal_time).reshape(x.shape)
             recovered_signal_tensor = torch.tensor(recovered_signal_time)  
             print("Signal recovery completed")
 
@@ -87,15 +107,29 @@ def recover_signal(x, l1_precision, opt_tol, ls_tol, n_sparsity_threshold, verbo
         
 
 
-def recover_signal_per_column(x, l1_precision, opt_tol, ls_tol, n_sparsity_threshold,verbosity):
-    recovered_signals = []
-    for i in range(x.shape[1]):
-        for j in range(x.shape[2]):
-            column_data = x[:, i, j] # if len(x.shape) > 2 else x[:, i]
-            recovered_signal = recover_signal(column_data, l1_precision, opt_tol, ls_tol, n_sparsity_threshold,verbosity)
-            recovered_signals.append(recovered_signal)
+def recover_signal_per_column(x, l1_precision, opt_tol, ls_tol, n_sparsity_threshold, verbosity):
+    """Apply 1-D CS recovery along the batch dimension for every (lag, sensor) pair.
 
-    return recovered_signals
+    Parameters
+    ----------
+    x : torch.Tensor
+        Input tensor of shape ``(batch, lags, num_sensors)``.
+
+    Returns
+    -------
+    torch.Tensor
+        Recovered tensor with the **same** shape ``(batch, lags, num_sensors)``.
+    """
+    batch, lags, n_sensors = x.shape
+    recovered = torch.zeros_like(x)
+    for i in range(lags):
+        for j in range(n_sensors):
+            column_data = x[:, i, j]
+            recovered[:, i, j] = recover_signal(
+                column_data, l1_precision, opt_tol, ls_tol,
+                n_sparsity_threshold, verbosity,
+            )
+    return recovered
 
 
 class CSSHRED(nn.Module):
@@ -143,96 +177,32 @@ class CSSHRED(nn.Module):
         self.show_plot = show_plot
 
     def forward(self, x):
+        """Forward pass: CS recovery preserving (batch, lags, sensors) then LSTM.
 
-        recovered_signals_per_column = recover_signal_per_column(
-            x, self.l1_tol, self.opt_tol, self.ls_tol, self.n_sparsity_threshold, self.verbosity_spgl1
-        )
-        combined_recovered_signal = torch.stack(recovered_signals_per_column, dim=1)
-        combined_recovered_signal_expanded = combined_recovered_signal.unsqueeze(-1)
-        combined_recovered_signal_expanded = combined_recovered_signal_expanded.squeeze(
-            -1
-        )
-        combined_recovered_signal_expanded = (
-            combined_recovered_signal_expanded.permute(0, 2, 1)
-            if len(combined_recovered_signal_expanded.shape) > 2
-            else combined_recovered_signal_expanded.permute(0, 1)
-        )
-        combined_recovered_signal_expanded = combined_recovered_signal_expanded.float()
-        if self.show_plot:
-            num_columns = x.size(1)
-            num_channels = x.size(2)
-            plt.plot(
-                x[:, 0, 0].detach().cpu().numpy(),
-                label=f"Subsampled Signal (Column {0}, Channel {0})",
-                color="red", linewidth=5
-            
-            )
-            # plt.xlabel("Time")
-            # plt.ylabel("Amplitude")
-            # plt.legend()
-            # plt.grid(False)
-            # plt.show()
-            plt.plot(
-                x[:, 0, 1].detach().cpu().numpy()+1,
-                label=f"Subsampled Signal (Column {0}, Channel {1})",
-                color="green", linewidth=5
-            )
-            # plt.xlabel("Time")
-            # plt.ylabel("Amplitude")
-            # plt.legend()
-            # plt.grid(False)
-            # plt.show()
-            plt.plot(
-                x[:, 0, 2].detach().cpu().numpy()+2,
-                label=f"Subsampled Signal (Column {0}, Channel {2})",
-                color="blue", linewidth=5
-            )
-            
-            plt.xlabel("Time")
-            plt.ylabel("Amplitude")
-            plt.legend()
-            plt.grid(False)
-            plt.show()
-
-
-        h_0 = torch.zeros(
-            self.hidden_layers,
-            combined_recovered_signal_expanded.size(0),
-            self.hidden_size,
-            dtype=torch.float,
-        )
-        c_0 = torch.zeros(
-            self.hidden_layers,
-            combined_recovered_signal_expanded.size(0),
-            self.hidden_size,
-            dtype=torch.float,
+        Parameters
+        ----------
+        x : torch.Tensor
+            Shape ``(batch, lags, num_sensors)`` or ``(batch, seq_len)``.
+        """
+        x_recovered = recover_signal_per_column(
+            x, self.l1_tol, self.opt_tol, self.ls_tol,
+            self.n_sparsity_threshold, self.verbosity_spgl1,
         )
 
         if next(self.parameters()).is_cuda:
-            h_0 = h_0.cuda()
-            c_0 = c_0.cuda()
-            combined_recovered_signal_expanded = (
-                combined_recovered_signal_expanded.cuda()
-            )
-        if len(x.shape) > 2:
-            combined_recovered_signal_expanded = (
-                combined_recovered_signal_expanded.unsqueeze(-1).repeat(
-                    1, 1, x.shape[2]
-                )
-            )
-        elif len(x.shape) == 2:
-            combined_recovered_signal_expanded = (
-                combined_recovered_signal_expanded.unsqueeze(-1)
-            )
+            x_recovered = x_recovered.cuda()
+        x_recovered = x_recovered.float()
 
-        if combined_recovered_signal_expanded.size(0) != x.size(0):
-            combined_recovered_signal_expanded = combined_recovered_signal_expanded[
-                : x.size(0)
-            ]
+        h_0 = torch.zeros(
+            self.hidden_layers, x_recovered.size(0), self.hidden_size,
+            dtype=torch.float, device=x_recovered.device,
+        )
+        c_0 = torch.zeros(
+            self.hidden_layers, x_recovered.size(0), self.hidden_size,
+            dtype=torch.float, device=x_recovered.device,
+        )
 
-        combined_recovered_signal_expanded = combined_recovered_signal_expanded.float()
-
-        _, (h_out, _) = self.lstm(combined_recovered_signal_expanded, (h_0, c_0))
+        _, (h_out, _) = self.lstm(x_recovered, (h_0, c_0))
         h_out = h_out[-1].view(-1, self.hidden_size)
 
         output = self.linear1(h_out)
@@ -432,19 +402,22 @@ def fit_csshred_model(
     patience=5,
     generator=None,
 ):
-    train_loader = DataLoader(train_dataset, shuffle=True, batch_size=batch_size, generator=generator)
+    batch_sampler = SequentialBlockBatchSampler(
+        len(train_dataset), batch_size, shuffle_blocks=True, generator=generator,
+    )
+    train_loader = DataLoader(train_dataset, batch_sampler=batch_sampler)
     criterion = torch.nn.MSELoss()
     criterion2 = torch.nn.L1Loss()
     weight_decay = 1e-4
-    lambd = 1e-5
     optimizer = torch.optim.AdamW(model.parameters(), lr=lr, weight_decay=1e-5)
     scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, 'min', patience=3, factor=0.5)
     val_error_list = []
     train_error_list = []
-    patience_counter = 0  
-    lambL2 = lambL2  
-    lambL1 = lambL1  
-    lambdaSNR = lambdaSNR  
+    patience_counter = 0
+    best_val_loss = float("inf")
+    lambL2 = lambL2
+    lambL1 = lambL1
+    lambdaSNR = lambdaSNR
     best_params = model.state_dict()
 
     for epoch in range(1, num_epochs + 1):
@@ -496,8 +469,7 @@ def fit_csshred_model(
                 # Calculating the validation SNR
                 val_snr = calculate_snr(valid_dataset.Y, val_outputs)
                 
-                # CORRIGIDO: Calcular MSE e L1 usando dados de VALIDACAO, nao do treinamento
-                # As variaveis lossMSE e lossL1 do loop de treinamento nao existem neste escopo
+                # Validation MSE/L1 from val batch (not train-loop scalars).
                 val_lossMSE = criterion(val_outputs, valid_dataset.Y)
                 val_lossL1 = criterion2(val_outputs, torch.zeros_like(val_outputs))
 
@@ -525,10 +497,11 @@ def fit_csshred_model(
                 print("Validation Error:" + str(val_loss.item()))
                 print("Validation SNR:" + str(val_snr.item()))
 
-            if len(val_error_list) > 0:
-                if val_loss == torch.min(torch.tensor(val_error_list)):
-                    patience_counter = 0
-                    best_params = model.state_dict()
+            v = float(val_loss.item())
+            if v < best_val_loss:
+                best_val_loss = v
+                patience_counter = 0
+                best_params = model.state_dict()
             else:
                 patience_counter += 1
 

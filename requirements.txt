@@ -9,3 +9,6 @@ pillow
 tqdm
 joblib
 torch
+torchvision
+optuna
+lpips

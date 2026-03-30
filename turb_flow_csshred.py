@@ -101,10 +101,7 @@ def subsample(snapshot, num_cols_subsample, num_snapshots_subsample):
     """
     np.random.seed(1001)
 
-    print("snapshot", snapshot.shape)
-
     snapshot = np.transpose(snapshot, (1, 2, 0))
-    print("snapshot after transpose", snapshot.shape)
     dim_x, dim_y, dim_t = snapshot.shape
     snapshot_subsampled = snapshot.copy()
 
@@ -150,8 +147,6 @@ def subsample(snapshot, num_cols_subsample, num_snapshots_subsample):
         print("Warning: All values were zeroed. Returning original data...")
         return snapshot
 
-    print("Shape of the snapshot after subsampling:", snapshot_subsampled.shape)
-    print(f"Percentage of data kept: {100 * (1 - np.sum(mask)/mask.size):.2f}%")
     return snapshot_subsampled
 
 
@@ -203,8 +198,6 @@ def plot_dynamics_at_sensors(
     np.random.seed(seed)
 
     dim_x, dim_y, dim_t = trace_A.shape
-
-    print("Shape of the snapshot after subsampling:", trace_A.shape)
 
     if locations == "a":
         central_x, central_y = 0.5, 0.5
@@ -337,7 +330,6 @@ def prepare_datasets(trace_A, trace_A_ori, num_sensors, sensor_locations, lags):
     load_X_test = trace_A_ori.reshape(dim_x * dim_y, dim_t).T
 
     load_X_shape_0, load_X_shape_1 = load_X.shape
-    print(load_X_shape_0, load_X_shape_1)
 
     # Ensuring that the sizes do not exceed the real size of the data
     total_size = train_size + val_size + test_size
@@ -360,6 +352,9 @@ def prepare_datasets(trace_A, trace_A_ori, num_sensors, sensor_locations, lags):
     sc = sc.fit(load_X[train_indices])
     transformed_X = sc.transform(load_X)
 
+    _sub_mask = (load_X == 0)
+    transformed_X[_sub_mask] = 0.0
+
     transformed_X_test = sc.transform(load_X_test)
 
     all_data_in = np.zeros((load_X_shape_0 - lags, lags, num_sensors))
@@ -369,8 +364,7 @@ def prepare_datasets(trace_A, trace_A_ori, num_sensors, sensor_locations, lags):
             all_data_in[i, :, j] = transformed_X[i : i + lags, loc]
             all_data_in_test[i, :, j] = transformed_X_test[i : i + lags, loc]
 
-    print("device:", device)
-    print("Number of sensors:{}".format(num_sensors))
+    print(f"device={device} num_sensors={num_sensors}")
 
     train_data_in = torch.tensor(all_data_in[train_indices], dtype=torch.float32).to(
         device
@@ -385,11 +379,12 @@ def prepare_datasets(trace_A, trace_A_ori, num_sensors, sensor_locations, lags):
         all_data_in_test[test_indices], dtype=torch.float32
     ).to(device)
 
+    # Targets must follow ORIGINAL field (aligned with turb_optuna.py), not subsampled Y.
     train_data_out = torch.tensor(
-        transformed_X[train_indices + lags - 1], dtype=torch.float32
+        transformed_X_test[train_indices + lags - 1], dtype=torch.float32
     ).to(device)
     valid_data_out = torch.tensor(
-        transformed_X[valid_indices + lags - 1], dtype=torch.float32
+        transformed_X_test[valid_indices + lags - 1], dtype=torch.float32
     ).to(device)
     test_data_out = torch.tensor(
         transformed_X[test_indices + lags - 1], dtype=torch.float32
@@ -553,9 +548,10 @@ def evaluate_model(
     # SSIM of the last snapshot (most important to evaluate final quality)
     last_snapshot_ssim = ssim_scores[-1]
 
-    print("Mean SSIM (all samples):", mean_ssim)
-    print("Last Snapshot SSIM:", last_snapshot_ssim)
-    print("Normalized Error:", error_norm)
+    print(
+        f"metrics: norm_err={error_norm:.6f} ssim_mean={mean_ssim:.6f} "
+        f"ssim_last={last_snapshot_ssim:.6f}"
+    )
 
     # Create the directory if it does not exist
     os.makedirs(os.path.dirname(json_save_path), exist_ok=True)
@@ -709,7 +705,7 @@ if model_type == "CS-SHRED":
         l1_tol=l1_tol,
         opt_tol=opt_tol,
         ls_tol=ls_tol,
-        n_sparsity_threshold=num_snapshots_subsample,
+        n_sparsity_threshold=0.75,
         verbosity=0,
         show_plot=False,
     ).to(device)
@@ -763,7 +759,7 @@ test_recons, test_ground_truth_test, error_norm, mean_ssim, last_snapshot_ssim =
 
 end_time = time.time()
 total_time = (end_time - begin_time) / 60
-print(f"Tempo de execução: {total_time:.2f} minutos")
+print(f"Total wall time: {total_time:.2f} minutes")
 
 # Definition of the model parameters
 model_params = {
