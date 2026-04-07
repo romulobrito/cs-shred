@@ -43,20 +43,54 @@ from processdata import TimeSeriesDataset
 
 device = "cuda" if torch.cuda.is_available() else "cpu"
 
-# Minimum fraction of zeros to trigger SPGL1 in CSSHRED (see models.recover_signal).
+# Minimum fraction of zeros to trigger SPGL1 along lags (CSSHREDLAGS; see models.recover_signal).
 # Override: export CS_N_SPARSITY_THRESHOLD=0.85
 CS_N_SPARSITY_THRESHOLD = float(os.environ.get("CS_N_SPARSITY_THRESHOLD", "0.75"))
 
-# Ablation loss mode: which terms Optuna optimizes.
+# Turb study: CSSHREDLAGS, SHRED (MSE via fit), or SHRED-COMPOSITE (SHRED + fit_csshred_model composite loss).
+# No CS-SHRED (spatial CS block) in this bundle.
+ABLATION_MODEL_TYPE = os.environ.get("ABLATION_MODEL_TYPE", "CSSHREDLAGS").strip().upper()
+if ABLATION_MODEL_TYPE not in ("CSSHREDLAGS", "SHRED", "SHRED-COMPOSITE"):
+    raise ValueError(
+        "ABLATION_MODEL_TYPE must be CSSHREDLAGS, SHRED, or SHRED-COMPOSITE, got: %s"
+        % ABLATION_MODEL_TYPE
+    )
+
+CSSHREDLAGS_BASIS = os.environ.get("CSSHREDLAGS_BASIS", "fft").strip().lower()
+if CSSHREDLAGS_BASIS not in ("fft", "dct"):
+    CSSHREDLAGS_BASIS = "fft"
+CSSHREDLAGS_CACHE_MAX = int(os.environ.get("CSSHREDLAGS_CACHE_MAX", "100000"))
+CSSHREDLAGS_TRAIN_LOSS = os.environ.get("CSSHREDLAGS_TRAIN_LOSS", "mse").strip().lower()
+if CSSHREDLAGS_TRAIN_LOSS not in ("mse", "full"):
+    CSSHREDLAGS_TRAIN_LOSS = "mse"
+
+# Ablation loss mode: conditions lambL1/lambdaSNR in Optuna; used by fit_csshred_model when
+# CSSHREDLAGS_TRAIN_LOSS=full or when ABLATION_MODEL_TYPE=SHRED-COMPOSITE.
 #   "full"     -> MSE + L1 + SNR
 #   "mse_only" -> MSE only
 #   "mse_l1"   -> MSE + L1
 #   "mse_snr"  -> MSE + SNR
 ABLATION_LOSS_MODE = os.environ.get("ABLATION_LOSS_MODE", "full").strip().lower()
+
+TURB_TIME_SLICE = int(os.environ.get("TURB_TIME_SLICE", "650"))
+TURB_COL_SUB_FRAC = float(os.environ.get("TURB_COL_SUB_FRAC", "0.3"))
+TURB_SNAP_SUB_FRAC = float(os.environ.get("TURB_SNAP_SUB_FRAC", "0.3"))
+
 print(
-    f"device={device} ablation={ABLATION_LOSS_MODE} "
-    f"CS_N_SPARSITY_THRESHOLD={CS_N_SPARSITY_THRESHOLD}"
+    "device=%s model=%s ablation=%s CS_N_SPARSITY_THRESHOLD=%s TURB_TIME_SLICE=%s"
+    % (
+        device,
+        ABLATION_MODEL_TYPE,
+        ABLATION_LOSS_MODE,
+        CS_N_SPARSITY_THRESHOLD,
+        TURB_TIME_SLICE,
+    )
 )
+if ABLATION_MODEL_TYPE == "CSSHREDLAGS":
+    print(
+        "CSSHREDLAGS_BASIS=%s CSSHREDLAGS_CACHE_MAX=%s CSSHREDLAGS_TRAIN_LOSS=%s"
+        % (CSSHREDLAGS_BASIS, CSSHREDLAGS_CACHE_MAX, CSSHREDLAGS_TRAIN_LOSS)
+    )
 
 def load_data(npy_file_path, time_slice):
     data_array = np.load(npy_file_path)
@@ -148,7 +182,7 @@ def subsample(snapshot, num_cols_subsample, num_snapshots_subsample):
 
 def plot_dynamics_at_sensors(
     trace_A, num_sensors, locations="c", show_plot=False, seed=101,
-    save_plot=False, save_path=None, file_name="plot_din.png", model_type="CS-SHRED"
+    save_plot=False, save_path=None, file_name="plot_din.png", model_type="SHRED",
 ):
     """
     Select sensor locations and optionally plot their temporal dynamics and spatial positions.
@@ -268,75 +302,58 @@ def plot_dynamics_at_sensors(
 
 
 
-def train_and_validate_model(
-    type_model,
-    model,
-    train_dataset,
-    valid_dataset,
-    num_epochs,
-    batch_size,
-    lr,
-    lambL2,
-    lambL1,
-    lambdaSNR,
-    verbose,
-    patience,
-    generator=None,
-):
-    if type_model == "CS-SHRED":
-        train_error, validation_errors = models.fit_csshred_model(
-            model,
-            train_dataset,
-            valid_dataset,
-            batch_size=batch_size,
-            num_epochs=num_epochs,
-            lr=lr,
-            lambL2=lambL2,
-            lambL1=lambL1,
-            lambdaSNR=lambdaSNR,
-            verbose=verbose,
-            patience=patience,
-            generator=generator,  # Pass generator for reproducibility
+def evaluate_model(model, test_dataset, test_dataset_test, sc, sc_test, batch_size=64):
+    """Inverse-transform predictions with sc_test; CSSHREDLAGS needs contiguous batch forward."""
+    if isinstance(model, models.CSSHREDLAGS):
+        raw = models.forward_csshred_contiguous_batches(
+            model, test_dataset.X, batch_size,
         )
-        return train_error, validation_errors
     else:
-        validation_errors = models.fit(
-            model,
-            train_dataset,
-            valid_dataset,
-            batch_size=batch_size,
-            num_epochs=num_epochs,
-            lr=lr,
-            verbose=verbose,
-            patience=patience,
-            generator=generator,  # Pass generator for reproducibility
-        )
-        return validation_errors
-
-
-
-def evaluate_model(model, test_dataset, test_dataset_test, sc, sc_test):
-    test_recons = sc.inverse_transform(model(test_dataset.X).detach().cpu().numpy())
+        raw = model(test_dataset.X)
+    test_recons = sc_test.inverse_transform(raw.detach().cpu().numpy())
     test_ground_truth = sc.inverse_transform(test_dataset.Y.detach().cpu().numpy())
     test_ground_truth_test = sc_test.inverse_transform(test_dataset_test.Y.detach().cpu().numpy())
-    
-    error_norm = np.linalg.norm(test_recons - test_ground_truth_test) / np.linalg.norm(test_ground_truth_test)
-    
-    ssim_score = ssim(test_ground_truth_test, test_recons, data_range=test_recons.max() - test_recons.min())
+
+    error_norm = np.linalg.norm(test_recons - test_ground_truth_test) / np.linalg.norm(
+        test_ground_truth_test
+    )
+
+    ssim_score = ssim(
+        test_ground_truth_test, test_recons, data_range=test_recons.max() - test_recons.min()
+    )
     last_snapshot_idx = test_recons.shape[0] - 1
     last_ground_truth = test_ground_truth_test[last_snapshot_idx]
     last_reconstruction = test_recons[last_snapshot_idx]
     ssim_last_snapshot = ssim(
         last_ground_truth,
         last_reconstruction,
-        data_range=last_ground_truth.max() - last_ground_truth.min()
+        data_range=last_ground_truth.max() - last_ground_truth.min(),
     )
     mse_last = mean_squared_error(last_ground_truth.flatten(), last_reconstruction.flatten())
     max_pixel_last = np.max(last_ground_truth)
-    psnr_last_snapshot = 20 * log10(max_pixel_last / np.sqrt(mse_last)) if mse_last > 0 else float('inf')
-    error_norm_last_snapshot = np.linalg.norm(last_reconstruction - last_ground_truth) / np.linalg.norm(last_ground_truth)
+    psnr_last_snapshot = (
+        20 * log10(max_pixel_last / np.sqrt(mse_last)) if mse_last > 0 else float("inf")
+    )
+    error_norm_last_snapshot = np.linalg.norm(last_reconstruction - last_ground_truth) / np.linalg.norm(
+        last_ground_truth
+    )
 
-    return test_recons, test_ground_truth, test_ground_truth_test, error_norm, ssim_score, ssim_last_snapshot, psnr_last_snapshot, error_norm_last_snapshot
+    print("Normalized Error (global):", error_norm)
+    print("SSIM (global):", ssim_score)
+    print("SSIM (last snapshot):", ssim_last_snapshot)
+    print("PSNR (last snapshot):", psnr_last_snapshot, "dB")
+    print("Normalized Error (last snapshot):", error_norm_last_snapshot)
+
+    return (
+        test_recons,
+        test_ground_truth,
+        test_ground_truth_test,
+        error_norm,
+        ssim_score,
+        ssim_last_snapshot,
+        psnr_last_snapshot,
+        error_norm_last_snapshot,
+    )
 
 
 def objective(trial):
@@ -345,11 +362,9 @@ def objective(trial):
     results_dir = global_results_dir
     os.makedirs(results_dir, exist_ok=True)
 
-    matrix = load_data(npy_file_path, time_slice=650)
-    
+    matrix = load_data(npy_file_path, time_slice=TURB_TIME_SLICE)
 
-    # model_type = 'CSSHRED'
-    model_type = 'CS-SHRED'
+    model_type = ABLATION_MODEL_TYPE
     seed = 915
     
     # ============================================================================
@@ -395,10 +410,20 @@ def objective(trial):
     num_sensors = trial.suggest_categorical("num_sensors", [5])
     num_epochs = trial.suggest_int("num_epochs", 500, 2000)
     step_epoch = trial.suggest_int("step_epoch", 10, 50)
-    # --- SPGL1 tolerances ---
-    l1_tol = trial.suggest_float("l1_tol", 1e-5, 1, log=True)
-    opt_tol = trial.suggest_float("opt_tol", 1e-5, 1, log=True)
-    ls_tol = trial.suggest_float("ls_tol", 1e-5, 1, log=True)
+    _dev_epoch_cap_raw = os.environ.get("OPTUNA_DEV_EPOCH_CAP", "").strip()
+    if _dev_epoch_cap_raw:
+        _cap = int(_dev_epoch_cap_raw)
+        if _cap < 1:
+            raise ValueError("OPTUNA_DEV_EPOCH_CAP must be >= 1, got %s" % _dev_epoch_cap_raw)
+        num_epochs = min(int(num_epochs), _cap)
+    if model_type == "CSSHREDLAGS":
+        l1_tol = trial.suggest_float("l1_tol", 1e-5, 1, log=True)
+        opt_tol = trial.suggest_float("opt_tol", 1e-5, 1, log=True)
+        ls_tol = trial.suggest_float("ls_tol", 1e-5, 1, log=True)
+    else:
+        l1_tol = 1e-3
+        opt_tol = 1e-4
+        ls_tol = 1e-4
     # --- Regularization ---
     # Was fixed at [0.01, 0.011]; now explore meaningful range.
     dropout = trial.suggest_float("dropout", 0.0, 0.3)
@@ -412,17 +437,17 @@ def objective(trial):
     global train_data_out, valid_data_out, test_data_out, train_dataset, valid_dataset, test_dataset
 
     snapshot = matrix.copy()
-    num_cols_subsample = int(snapshot.shape[2] * 0.3)
-    num_snapshots_subsample = int(snapshot.shape[0] * 0.3)
+    num_cols_subsample = int(snapshot.shape[2] * TURB_COL_SUB_FRAC)
+    num_snapshots_subsample = int(snapshot.shape[0] * TURB_SNAP_SUB_FRAC)
     snapshot = subsample(snapshot, num_cols_subsample, num_snapshots_subsample)
-    # visualize_data(matrix,snapshot, results_dir)
-    
+
     sensor_locations, sensor_positions_x, sensor_positions_y = plot_dynamics_at_sensors(
-        snapshot, 
+        snapshot,
         num_sensors,
-        locations="c", 
-        show_plot=False, 
-        seed=seed
+        locations="c",
+        show_plot=False,
+        seed=seed,
+        model_type=model_type,
     )
 
     trace_A = snapshot.copy()
@@ -523,8 +548,9 @@ def objective(trial):
     test_dataset = TimeSeriesDataset(test_data_in, test_data_out)
     test_dataset_test = TimeSeriesDataset(test_data_in_test, test_data_out_test)
 
-    if model_type == 'CS-SHRED':
-        model = models.CSSHRED(
+    train_error = None
+    if model_type == "CSSHREDLAGS":
+        model = models.CSSHREDLAGS(
             num_sensors,
             m,
             hidden_size=hidden_size,
@@ -537,26 +563,40 @@ def objective(trial):
             ls_tol=ls_tol,
             n_sparsity_threshold=CS_N_SPARSITY_THRESHOLD,
             verbosity=0,
-            show_plot=False,
+            basis=CSSHREDLAGS_BASIS,
+            cache_max_entries=CSSHREDLAGS_CACHE_MAX,
         ).to(device)
-
-        train_error, validation_errors = models.fit_csshred_model(
-            model,
-            train_dataset,
-            valid_dataset,
-            batch_size=batch_size,
-            num_epochs=num_epochs,
-            lr=lr,
-            lambL2=lambL2,
-            step_epoch=step_epoch,
-            lambL1=lambL1,
-            lambdaSNR=lambdaSNR,
-            verbose=False,
-            patience=15,
-            generator=generator,  # Pass generator for reproducibility
-        )
-    else:
-        model = models.SHRED(  # 64
+        if CSSHREDLAGS_TRAIN_LOSS == "full":
+            train_error, validation_errors = models.fit_csshred_model(
+                model,
+                train_dataset,
+                valid_dataset,
+                batch_size=batch_size,
+                num_epochs=num_epochs,
+                lr=lr,
+                lambL2=lambL2,
+                step_epoch=step_epoch,
+                lambL1=lambL1,
+                lambdaSNR=lambdaSNR,
+                verbose=False,
+                patience=15,
+                generator=generator,
+            )
+        else:
+            validation_errors = models.fit(
+                model,
+                train_dataset,
+                valid_dataset,
+                num_epochs=num_epochs,
+                batch_size=batch_size,
+                lr=lr,
+                step_epoch=step_epoch,
+                verbose=False,
+                patience=15,
+                generator=generator,
+            )
+    elif model_type == "SHRED":
+        model = models.SHRED(
             num_sensors,
             m,
             hidden_size=hidden_size,
@@ -575,12 +615,42 @@ def objective(trial):
             step_epoch=step_epoch,
             verbose=False,
             patience=15,
-            generator=generator,  # Pass generator for reproducibility
+            generator=generator,
         )
-    
+    elif model_type == "SHRED-COMPOSITE":
+        # SHRED backbone without CS block; same optimizer/loss path as CS-SHRED (fit_csshred_model).
+        model = models.SHRED(
+            num_sensors,
+            m,
+            hidden_size=hidden_size,
+            hidden_layers=hidden_layers,
+            l1=l1,
+            l2=l2,
+            dropout=dropout,
+        ).to(device)
+        train_error, validation_errors = models.fit_csshred_model(
+            model,
+            train_dataset,
+            valid_dataset,
+            batch_size=batch_size,
+            num_epochs=num_epochs,
+            lr=lr,
+            lambL2=lambL2,
+            step_epoch=step_epoch,
+            lambL1=lambL1,
+            lambdaSNR=lambdaSNR,
+            verbose=False,
+            patience=15,
+            generator=generator,
+        )
+    else:
+        raise RuntimeError("unexpected model_type: %s" % model_type)
+
     validation_errors = [float(val) for val in validation_errors]
 
-    test_recons, test_ground_truth, test_ground_truth_test, error_norm, ssim_score, ssim_last_snapshot, psnr_last_snapshot, error_norm_last_snapshot = evaluate_model(model, test_dataset, test_dataset_test, sc, sc_test)
+    test_recons, test_ground_truth, test_ground_truth_test, error_norm, ssim_score, ssim_last_snapshot, psnr_last_snapshot, error_norm_last_snapshot = evaluate_model(
+        model, test_dataset, test_dataset_test, sc, sc_test, batch_size=batch_size,
+    )
 
     best_trial_artifacts_dir = os.path.join(results_dir, "best_trial_artifacts")
     os.makedirs(best_trial_artifacts_dir, exist_ok=True)
@@ -688,22 +758,11 @@ def objective(trial):
     return float(composite_metric)
 
 
-def save_best_trial_artifacts(best_trial, results_dir, npy_file_path, model_type='CS-SHRED', seed=915):
+def save_best_trial_artifacts(best_trial, results_dir, npy_file_path, model_type="SHRED", seed=915):
     """
     Re-run the best trial and save numpy arrays and figures for notebooks.
 
-    Parameters
-    ----------
-    best_trial : optuna.Trial
-        Best trial from Optuna.
-    results_dir : str
-        Study output directory.
-    npy_file_path : str
-        Path to the input .npy field.
-    model_type : str
-        'CS-SHRED' or 'SHRED'.
-    seed : int
-        RNG seed.
+    model_type: CSSHREDLAGS, SHRED, or SHRED-COMPOSITE (must match the study).
     """
     artifacts_dir = os.path.join(results_dir, "best_trial_artifacts")
     os.makedirs(artifacts_dir, exist_ok=True)
@@ -741,10 +800,10 @@ def save_best_trial_artifacts(best_trial, results_dir, npy_file_path, model_type
     opt_tol = best_trial.params.get("opt_tol")
     ls_tol = best_trial.params.get("ls_tol")
     
-    matrix = load_data(npy_file_path, time_slice=650)
+    matrix = load_data(npy_file_path, time_slice=TURB_TIME_SLICE)
     snapshot = matrix.copy()
-    num_cols_subsample = int(snapshot.shape[2] * 0.3)
-    num_snapshots_subsample = int(snapshot.shape[0] * 0.3)
+    num_cols_subsample = int(snapshot.shape[2] * TURB_COL_SUB_FRAC)
+    num_snapshots_subsample = int(snapshot.shape[0] * TURB_SNAP_SUB_FRAC)
     snapshot = subsample(snapshot, num_cols_subsample, num_snapshots_subsample)
 
     visualize_data(matrix, snapshot, artifacts_dir, save_plots=True)
@@ -758,7 +817,7 @@ def save_best_trial_artifacts(best_trial, results_dir, npy_file_path, model_type
         save_plot=True,
         save_path=artifacts_dir,
         file_name=f"plot_din_{model_type}.png",
-        model_type=model_type
+        model_type=model_type,
     )
 
     trace_A = snapshot.copy()
@@ -835,8 +894,17 @@ def save_best_trial_artifacts(best_trial, results_dir, npy_file_path, model_type
     test_dataset = TimeSeriesDataset(test_data_in, test_data_out)
     test_dataset_test = TimeSeriesDataset(test_data_in_test, test_data_out_test)
     
-    if model_type == 'CS-SHRED':
-        model = models.CSSHRED(
+    _basis = os.environ.get("CSSHREDLAGS_BASIS", "fft").strip().lower()
+    if _basis not in ("fft", "dct"):
+        _basis = "fft"
+    _cache_max = int(os.environ.get("CSSHREDLAGS_CACHE_MAX", "100000"))
+    _tl = os.environ.get("CSSHREDLAGS_TRAIN_LOSS", "mse").strip().lower()
+    if _tl not in ("mse", "full"):
+        _tl = "mse"
+
+    train_error = None
+    if model_type == "CSSHREDLAGS":
+        model = models.CSSHREDLAGS(
             num_sensors,
             m,
             hidden_size=hidden_size,
@@ -849,25 +917,39 @@ def save_best_trial_artifacts(best_trial, results_dir, npy_file_path, model_type
             ls_tol=ls_tol,
             n_sparsity_threshold=CS_N_SPARSITY_THRESHOLD,
             verbosity=0,
-            show_plot=False,
+            basis=_basis,
+            cache_max_entries=_cache_max,
         ).to(device)
-        
-        train_error, validation_errors = models.fit_csshred_model(
-            model,
-            train_dataset,
-            valid_dataset,
-            batch_size=batch_size,
-            num_epochs=num_epochs,
-            lr=lr,
-            lambL2=lambL2,
-            step_epoch=step_epoch,
-            lambL1=lambL1,
-            lambdaSNR=lambdaSNR,
-            verbose=False,
-            patience=15,
-            generator=generator,  # Pass generator for reproducibility
-        )
-    else:
+        if _tl == "full":
+            train_error, validation_errors = models.fit_csshred_model(
+                model,
+                train_dataset,
+                valid_dataset,
+                batch_size=batch_size,
+                num_epochs=num_epochs,
+                lr=lr,
+                lambL2=lambL2,
+                step_epoch=step_epoch,
+                lambL1=lambL1,
+                lambdaSNR=lambdaSNR,
+                verbose=False,
+                patience=15,
+                generator=generator,
+            )
+        else:
+            validation_errors = models.fit(
+                model,
+                train_dataset,
+                valid_dataset,
+                num_epochs=num_epochs,
+                batch_size=batch_size,
+                lr=lr,
+                step_epoch=step_epoch,
+                verbose=False,
+                patience=15,
+                generator=generator,
+            )
+    elif model_type == "SHRED":
         model = models.SHRED(
             num_sensors,
             m,
@@ -887,14 +969,42 @@ def save_best_trial_artifacts(best_trial, results_dir, npy_file_path, model_type
             step_epoch=step_epoch,
             verbose=False,
             patience=15,
-            generator=generator,  # Pass generator for reproducibility
+            generator=generator,
         )
-        train_error = None
-    
+    elif model_type == "SHRED-COMPOSITE":
+        model = models.SHRED(
+            num_sensors,
+            m,
+            hidden_size=hidden_size,
+            hidden_layers=hidden_layers,
+            l1=l1,
+            l2=l2,
+            dropout=dropout,
+        ).to(device)
+        train_error, validation_errors = models.fit_csshred_model(
+            model,
+            train_dataset,
+            valid_dataset,
+            batch_size=batch_size,
+            num_epochs=num_epochs,
+            lr=lr,
+            lambL2=lambL2,
+            step_epoch=step_epoch,
+            lambL1=lambL1,
+            lambdaSNR=lambdaSNR,
+            verbose=False,
+            patience=15,
+            generator=generator,
+        )
+    else:
+        raise ValueError(
+            "model_type must be CSSHREDLAGS, SHRED, or SHRED-COMPOSITE, got: %s" % model_type
+        )
+
     validation_errors = [float(val) for val in validation_errors]
-    
+
     test_recons, test_ground_truth, test_ground_truth_test, error_norm, ssim_score, ssim_last_snapshot, psnr_last_snapshot, error_norm_last_snapshot = evaluate_model(
-        model, test_dataset, test_dataset_test, sc, sc_test
+        model, test_dataset, test_dataset_test, sc, sc_test, batch_size=batch_size,
     )
 
     np.save(os.path.join(artifacts_dir, "test_recons.npy"), test_recons)
@@ -915,8 +1025,18 @@ def save_best_trial_artifacts(best_trial, results_dir, npy_file_path, model_type
 
 base_results_dir = _default_optuna_results_base()
 timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-_mode_suffix = f"_{ABLATION_LOSS_MODE}" if ABLATION_LOSS_MODE != "full" else ""
-results_dir = os.path.join(base_results_dir, f"test_{timestamp}{_mode_suffix}")
+if ABLATION_MODEL_TYPE == "CSSHREDLAGS":
+    _model_run_suffix = "_csshredlags"
+    if CSSHREDLAGS_TRAIN_LOSS != "full":
+        _model_run_suffix += "_mse"
+elif ABLATION_MODEL_TYPE == "SHRED-COMPOSITE":
+    _model_run_suffix = "_shred_composite"
+else:
+    _model_run_suffix = "_shred"
+_mode_suffix = "_%s" % ABLATION_LOSS_MODE if ABLATION_LOSS_MODE != "full" else ""
+results_dir = os.path.join(
+    base_results_dir, "test_%s%s%s" % (timestamp, _model_run_suffix, _mode_suffix)
+)
 os.makedirs(results_dir, exist_ok=True)
 print(f"Results will be saved to: {results_dir}")
 
@@ -931,6 +1051,7 @@ trial = study.best_trial
 
 best_params = {
     "trial_number": trial.number,
+    "model_type": ABLATION_MODEL_TYPE,
     "loss_mode": ABLATION_LOSS_MODE,
     "hidden_size": trial.params.get("hidden_size"),
     "hidden_layers": trial.params.get("hidden_layers"),
@@ -945,12 +1066,16 @@ best_params = {
     "num_sensors": trial.params.get("num_sensors"),
     "num_epochs": trial.params.get("num_epochs"),
     "dropout": float(trial.params.get("dropout")),
-    "l1_tol": float(trial.params.get("l1_tol")),
-    "opt_tol": float(trial.params.get("opt_tol")),
-    "ls_tol": float(trial.params.get("ls_tol")),
     "step_epoch": trial.params.get("step_epoch"),
     "n_sparsity_threshold": float(CS_N_SPARSITY_THRESHOLD),
 }
+if ABLATION_MODEL_TYPE == "CSSHREDLAGS":
+    best_params["l1_tol"] = float(trial.params.get("l1_tol"))
+    best_params["opt_tol"] = float(trial.params.get("opt_tol"))
+    best_params["ls_tol"] = float(trial.params.get("ls_tol"))
+    best_params["csshredlags_train_loss"] = CSSHREDLAGS_TRAIN_LOSS
+    best_params["csshredlags_basis"] = CSSHREDLAGS_BASIS
+    best_params["csshredlags_cache_max"] = CSSHREDLAGS_CACHE_MAX
 
 results_file = os.path.join(results_dir, f"{trial.number}_results.json")
 with open(results_file, "r") as f:
@@ -1046,7 +1171,7 @@ if os.path.exists(os.path.join(best_trial_artifacts_dir, "test_recons.npy")):
     
     visualize_data(matrix, snapshot, best_trial_artifacts_dir, save_plots=True)
 
-    model_type = 'CS-SHRED'
+    model_type = ABLATION_MODEL_TYPE
     plot_dynamics_at_sensors(
         snapshot,
         trial.params.get("num_sensors"),
@@ -1056,15 +1181,16 @@ if os.path.exists(os.path.join(best_trial_artifacts_dir, "test_recons.npy")):
         save_plot=True,
         save_path=best_trial_artifacts_dir,
         file_name=f"plot_din_{model_type}.png",
-        model_type=model_type
+        model_type=model_type,
     )
-    
+
 else:
     print(
         f"warning: best-trial artifacts missing under {best_trial_artifacts_dir}; "
         "running save_best_trial_artifacts fallback (metrics may differ slightly)."
     )
     npy_file_path = _default_turb_npy_path()
-    model_type = 'CS-SHRED'
-    save_best_trial_artifacts(trial, results_dir, npy_file_path, model_type=model_type, seed=915)
+    save_best_trial_artifacts(
+        trial, results_dir, npy_file_path, model_type=ABLATION_MODEL_TYPE, seed=915,
+    )
 
