@@ -91,7 +91,7 @@ The model will generate:
 
 ```
 cs-shred/
-├── models.py              # CS-SHRED and SHRED model architectures
+├── models.py              # SHRED and CSSHREDLAGS (lag-wise CS) architectures
 ├── processdata.py         # Data loading and preprocessing utilities
 ├── turb_flow_csshred.py   # Main training script for turbulence data
 ├── requirements.txt       # Python dependencies

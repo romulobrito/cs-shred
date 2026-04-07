@@ -418,12 +418,12 @@ def train_and_validate_model(
     patience,
 ):
     """
-    Train and validate a CS-SHRED or SHRED model.
+    Train and validate CSSHREDLAGS (composite loop) or SHRED (MSE).
 
     Parameters
     ----------
     type_model : str
-        Model type ('CS-SHRED' or 'SHRED').
+        ``CSSHREDLAGS`` or ``SHRED``.
     model : torch.nn.Module
         Model instance.
     train_dataset : Dataset
@@ -452,11 +452,11 @@ def train_and_validate_model(
     Returns
     -------
     train_error : np.ndarray or None
-        Training error history (CS-SHRED only).
+        Training error history (CSSHREDLAGS branch only).
     validation_errors : np.ndarray
         Validation error history.
     """
-    if type_model == "CS-SHRED":
+    if type_model == "CSSHREDLAGS":
         train_error, validation_errors = models.fit_csshred_model(
             model,
             train_dataset,
@@ -488,7 +488,12 @@ def train_and_validate_model(
 
 
 def evaluate_model(
-    model, test_dataset, test_dataset_test, sc, json_save_path=save_path + "/error_results.json"
+    model,
+    test_dataset,
+    test_dataset_test,
+    sc,
+    batch_size=64,
+    json_save_path=save_path + "/error_results.json",
 ):
     """
     Evaluate the model on the test dataset, computing normalized error and SSIM,
@@ -516,8 +521,13 @@ def evaluate_model(
     error_norm : float
         Normalized error.
     """
-    # Perform the prediction with the model and transform the data back to the original format
-    test_recons = sc.inverse_transform(model(test_dataset.X).detach().cpu().numpy())
+    if isinstance(model, models.CSSHREDLAGS):
+        raw = models.forward_csshred_contiguous_batches(
+            model, test_dataset.X, batch_size,
+        )
+    else:
+        raw = model(test_dataset.X)
+    test_recons = sc.inverse_transform(raw.detach().cpu().numpy())
     test_ground_truth = sc.inverse_transform(test_dataset.Y.detach().cpu().numpy())
     test_ground_truth_test = sc.inverse_transform(test_dataset_test.Y.detach().cpu().numpy())
 
@@ -580,7 +590,7 @@ def add_model_info_to_json(json_file_path, model_type, model_params, config_para
     json_file_path : str
         Path to the JSON file.
     model_type : str
-        Model type ('CS-SHRED' or 'SHRED').
+        ``CSSHREDLAGS`` or ``SHRED``.
     model_params : dict
         Model hyperparameters.
     config_params : dict
@@ -612,8 +622,8 @@ seed = 915
 verbose = True
 patience = 15
 np.random.seed(seed)
-# Choice of model CS-SHRED/SHRED
-model_type = "CS-SHRED"
+# Model: CSSHREDLAGS (lag-wise CS + composite training) or SHRED (MSE)
+model_type = "CSSHREDLAGS"
 
 # Loading the data
 matrix = load_data(npy_file_path, time_slice=650)
@@ -692,9 +702,8 @@ train_dataset, valid_dataset, test_dataset, test_dataset_test, sc, load_X_shape_
 
 
 # Training and validation of the model
-if model_type == "CS-SHRED":
-    # Instantiation and configuration of the CS-SHRED model
-    model = models.CSSHRED(
+if model_type == "CSSHREDLAGS":
+    model = models.CSSHREDLAGS(
         num_sensors,
         load_X_shape_1,
         hidden_size=hidden_size,
@@ -706,8 +715,9 @@ if model_type == "CS-SHRED":
         opt_tol=opt_tol,
         ls_tol=ls_tol,
         n_sparsity_threshold=0.75,
-        verbosity=0,
-        show_plot=False,
+        verbosity=-1,
+        basis="fft",
+        cache_max_entries=100000,
     ).to(device)
     train_error, validation_errors = train_and_validate_model(
         model_type,
@@ -754,7 +764,12 @@ else:
 
 # Evaluation of the model
 test_recons, test_ground_truth_test, error_norm, mean_ssim, last_snapshot_ssim = evaluate_model(
-    model, test_dataset, test_dataset_test, sc, json_save_path=save_path + r"error_results.json"
+    model,
+    test_dataset,
+    test_dataset_test,
+    sc,
+    batch_size=batch_size,
+    json_save_path=save_path + r"error_results.json",
 )
 
 end_time = time.time()
@@ -799,7 +814,7 @@ json_file_path = save_path + r"/error_results.json"
 add_model_info_to_json(json_file_path, model_type, model_params, config_params)
 
 
-if model_type == "CS-SHRED":
+if model_type == "CSSHREDLAGS":
 
     def save_to_numpy(
         test_recons,
